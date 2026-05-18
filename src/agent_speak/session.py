@@ -1,0 +1,94 @@
+"""Session 状态与全局运行期配置。所有状态在内存里。"""
+from __future__ import annotations
+
+import asyncio
+import json
+import uuid
+from dataclasses import dataclass, field
+from typing import Any
+
+
+@dataclass
+class Config:
+    base_url: str = "http://127.0.0.1:11002"
+    stdio_mode: bool = True
+    auto_open: bool = True
+    # 每次 render_artifact 把 HTML 落地到 <archive_dir>/<sid>/<timestamp>.html。
+    # 相对路径相对于进程 cwd。设为 None / 空串可关闭。
+    archive_dir: str | None = "artifacts"
+
+
+CONFIG = Config()
+
+
+class SSEClient:
+    """单个 SSE 连接的发件队列。仅 1 个并发消费者。"""
+
+    def __init__(self) -> None:
+        self.queue: asyncio.Queue[tuple[str, Any] | None] = asyncio.Queue()
+        self.closed: bool = False
+
+    async def send(self, event: str, data: Any) -> None:
+        if self.closed:
+            return
+        await self.queue.put((event, data))
+
+    async def close(self) -> None:
+        if self.closed:
+            return
+        self.closed = True
+        await self.queue.put(None)
+
+    async def stream(self):
+        try:
+            while True:
+                item = await self.queue.get()
+                if item is None:
+                    break
+                event, data = item
+                payload = json.dumps(data, ensure_ascii=False)
+                yield f"event: {event}\ndata: {payload}\n\n".encode("utf-8")
+        finally:
+            self.closed = True
+
+
+@dataclass
+class SessionState:
+    sid: str
+    artifact_html: str | None = None
+    sse_writer: SSEClient | None = None
+    submit_event: asyncio.Event = field(default_factory=asyncio.Event)
+    submitted_data: Any = None  # 结构化 feedback: {user_comments, user_form_inputs}
+    error: str | None = None
+    opened: bool = False
+
+
+SESSIONS: dict[str, SessionState] = {}
+
+
+# stdio 模式下没有真正的 session id 概念,用一个进程级的固定 id
+_STDIO_SID = uuid.uuid4().hex[:16]
+
+
+def stdio_sid() -> str:
+    return _STDIO_SID
+
+
+def get_or_create(sid: str) -> SessionState:
+    state = SESSIONS.get(sid)
+    if state is None:
+        state = SessionState(sid=sid)
+        SESSIONS[sid] = state
+    return state
+
+
+async def drop(sid: str) -> None:
+    state = SESSIONS.pop(sid, None)
+    if state is None:
+        return
+    if state.sse_writer is not None:
+        await state.sse_writer.send("end", {})
+        await state.sse_writer.close()
+    if not state.submit_event.is_set():
+        state.error = "session closed"
+        state.submit_event.set()
