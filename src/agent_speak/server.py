@@ -116,10 +116,9 @@ RENDER_DOC = """把一份 UI artifact 推给用户。用户可以填写任意表
         wait_user_feedback 的 wait / poll 模式。漏掉这一步会死锁:用户
         拿不到 URL 就没法提交,你会永远等不到反馈。
 
-抛 ToolError:**仅表示用户暂时没回复**——artifact 已经成功送到他的页面,
-渲染和服务端都是正常的,只是他没在限定时间内提交。**这不是失败,不要**
-重新调 render_artifact 重推一版。补救方式:调 wait_user_feedback(sid,
-mode="wait") 继续阻塞,或者 mode="poll" 立即释放控制权、等用户主动来问。
+抛 ToolError:artifact 已经送到用户那边,但在服务端愿意挂起的时间内他没
+提交。补救方式:调 wait_user_feedback(sid, mode="wait") 继续阻塞,或者
+mode="poll" 立即释放控制权、等用户主动来问。
 
 `html` 契约:
 - 纯 HTML(通过 innerHTML 注入)。**禁止** React、JSX、useState。
@@ -153,11 +152,9 @@ WAIT_DOC = """取回用户对 `render_artifact` 推过去那份 artifact 的反�
 
   mode="wait"(交互流——用户正盯着屏幕)
       阻塞最多 `max_wait_seconds`(钳制在 [1, 180],也就是 3 分钟上限)
-      等用户提交。提交则返回 {feedback}。**超时会抛 ToolError,但语义
-      仅是"用户暂时没回复"**——不是渲染失败,也不是服务端故障,artifact
-      还在他页面上,**绝不要**因此重新调 render_artifact 重推一版。超时
-      只是逼你浮上水面做明确决定:再调一次 mode="wait" 继续等,或降级
-      到 mode="poll"。仅在用户正活跃参与时用 wait。
+      等用户提交。提交则返回 {feedback}。**超时会抛 ToolError**
+      (不是返回 {pending}),强制你浮上水面做明确决定:再调一次
+      mode="wait" 继续等,或降级到 mode="poll"。仅在用户正活跃参与时用。
 
 成功返回(二选一):
   {"feedback": {...}}                — 用户点了发送;payload 见下。

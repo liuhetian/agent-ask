@@ -155,3 +155,7 @@ uv run agent-speak --http \            # streamable-http 模式
 - 无鉴权。URL 里的 sid 是 UUID 强度的,猜不出来,但**任何拿到 URL 的人都能提交**。不要在公开场合贴出来。
 - AI 不能写 JS 交互。拖拽、tab 切换、多步向导这类**必须**拆成多轮 artifact 交换(每次 `render_artifact` 都会替换前一份)。
 - 浏览器要求支持 EventSource 与 `CSS.escape`(2023 年以后的现代浏览器都行)。
+
+## 感谢
+
+[linux.do](https://linux.do)
