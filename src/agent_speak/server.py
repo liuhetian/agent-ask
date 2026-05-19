@@ -111,14 +111,18 @@ RENDER_DOC = """把一份 UI artifact 推给用户。用户可以填写任意表
         还活着的 tab 里的,他第一时间就看到了。
 
   • {status: "pending", next_step, sid, url, reused_tab: false}
-        用户还没看到这份 artifact。**严格按 next_step 的指引走**——通常
-        是:先把 URL 告诉用户,然后根据他"现在就填 / 稍后再看"分别调
-        wait_user_feedback 的 wait / poll 模式。漏掉这一步会死锁:用户
-        拿不到 URL 就没法提交,你会永远等不到反馈。
+        首次推送(浏览器还没连上),用户还没看到这份 artifact。**严格按
+        next_step 的指引走**——通常是:先把 URL 告诉用户,然后根据他
+        "现在就填 / 稍后再看"分别调 wait_user_feedback 的 wait / poll
+        模式。漏掉这一步会死锁:用户拿不到 URL 就没法提交,你会永远等
+        不到反馈。
 
-抛 ToolError:artifact 已经送到用户那边,但在服务端愿意挂起的时间内他没
-提交。补救方式:调 wait_user_feedback(sid, mode="wait") 继续阻塞,或者
-mode="poll" 立即释放控制权、等用户主动来问。
+  • {status: "pending", next_step, sid, url, reused_tab: true}
+        复用 tab 分支,内置的 3 分钟同步等待结束了,用户还没提交。
+        **这就是个正常的"还在等"状态,不是渲染失败、不是服务端故障。**
+        URL 不变,artifact 还在用户屏幕上,**不要**再调 render_artifact
+        重推一版。下一步看 next_step:继续等就调 wait_user_feedback 的
+        wait 模式;把控制权交还给对话就调 poll 模式。
 
 `html` 契约:
 - 纯 HTML(通过 innerHTML 注入)。**禁止** React、JSX、useState。
@@ -215,18 +219,26 @@ async def render_artifact(html: str, ctx: Context) -> dict[str, Any]:
         try:
             await asyncio.wait_for(state.submit_event.wait(), timeout=180)
         except asyncio.TimeoutError:
-            raise ToolError(
-                f"用户暂时还没回复——artifact 已经成功推送到他的活动 tab,"
-                f"页面也没有问题,只是这 3 分钟里他没提交。这是正常的等待"
-                f"超时,**不是渲染失败或服务端故障**,**不要**重新调 "
-                f"render_artifact 重推一版。\n\n"
-                f"接下来怎么办由你决定:\n"
-                f"  • 继续等:再调 wait_user_feedback(sid='{sid}', "
-                f"mode='wait', max_wait_seconds=180)。\n"
-                f"  • 把控制权交还给对话:调 wait_user_feedback(sid='{sid}', "
-                f"mode='poll'),等用户之后主动来问\"回了没\"。\n"
-                f"(URL 仅供参考,artifact 已在用户屏幕上,不需要重发:{url})"
-            )
+            # 渲染本身是成功的——artifact 已经推到用户那边了,只是这 3 分钟
+            # 内他还没提交。**不要**把这当成失败抛出去:对 AI 来说,这就是
+            # 一个正常的"还在等提交"状态,URL 不变,页面也没动。
+            return {
+                "sid": sid,
+                "url": url,
+                "reused_tab": True,
+                "status": "pending",
+                "next_step": (
+                    "render 成功,artifact 已通过 SSE 推到用户活动 tab,但"
+                    "这 3 分钟里他还没提交。URL 不变,页面没问题。\n\n"
+                    "你**不需要**再把 URL 念给用户(他第一时间就看到了),"
+                    "**更不要**重新调 render_artifact 重推一版。\n\n"
+                    f"接下来由你决定:\n"
+                    f"  • 继续等:调 wait_user_feedback(sid='{sid}', "
+                    f"mode='wait', max_wait_seconds=180)。\n"
+                    f"  • 把控制权交还给对话:调 wait_user_feedback("
+                    f"sid='{sid}', mode='poll'),等用户之后主动来问。"
+                ),
+            }
         feedback = _finalize(state)  # {"feedback": ...} 或 raise ToolError
         return {
             "sid": sid,
