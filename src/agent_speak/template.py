@@ -26,7 +26,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
 <script src="https://cdn.tailwindcss.com"></script>
 <style>
   html, body { height: 100%; margin: 0; }
-  body { background: #f9fafb; color: #111827; font-family: ui-sans-serif, system-ui, -apple-system, sans-serif; }
+  body { background: #e9e0ca; color: #1a1a1a; font-family: ui-sans-serif, system-ui, -apple-system, sans-serif; }
 
   #container { min-height: 100vh; }
   #container[data-frozen="true"] { opacity: 0.5; pointer-events: none; }
@@ -792,42 +792,46 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
   #submit-overlay .subtitle strong { color: #8b1e1e; font-weight: 900; }
 </style>
 <!-- 预设语义类(永远可用,AI 不需要再 @apply 一遍)。
-     设计 token 跟 host 视觉对齐——蓝主色、灰背景、字号节奏。 -->
+     设计 token 跟 host 报纸壳对齐——cream 底 #f4ecd8、黑墨 #1a1a1a、
+     深红强调 #8b1e1e、衬线字体、硬阴影、双线分隔、大写字距、零圆角。 -->
 <style id="ass-preset-styles" type="text/tailwindcss">
+  /* 内容区整体定调:深墨色文字 + 衬线(含中文衬线回退) */
+  .artifact-root { @apply text-[#1a1a1a]; font-family: Georgia, "Songti SC", "Source Han Serif SC", "Noto Serif CJK SC", serif; }
+
   /* —— Layout —— */
-  .artifact-root .ass-panel    { @apply bg-white rounded-xl border border-gray-100 shadow-sm p-6 mb-4; }
+  .artifact-root .ass-panel    { @apply bg-[#f4ecd8] rounded-none border-2 border-[#1a1a1a] shadow-[4px_4px_0_#1a1a1a] p-6 mb-4; }
   .artifact-root .ass-section  { @apply mb-4; }
   .artifact-root .ass-row      { @apply flex items-center gap-3; }
   .artifact-root .ass-col      { @apply flex flex-col gap-3; }
 
   /* —— Typography —— */
-  .artifact-root .ass-h1       { @apply text-2xl font-semibold text-gray-900 mb-3; }
-  .artifact-root .ass-h2       { @apply text-lg font-semibold text-gray-900 mb-2; }
-  .artifact-root .ass-hint     { @apply text-xs text-gray-500; }
-  .artifact-root .ass-code     { @apply font-mono text-sm bg-gray-100 text-gray-800 px-1.5 py-0.5 rounded; }
-  .artifact-root .ass-kbd      { @apply font-mono text-xs bg-gray-100 border border-gray-300 rounded px-1.5 py-0.5; }
-  .artifact-root .ass-divider  { @apply border-t border-gray-200 my-4; }
+  .artifact-root .ass-h1       { @apply text-2xl font-black uppercase tracking-wide text-[#1a1a1a] mb-3 pb-2 border-b-[3px] border-double border-[#1a1a1a]; }
+  .artifact-root .ass-h2       { @apply text-lg font-black uppercase tracking-wide text-[#1a1a1a] mb-2; }
+  .artifact-root .ass-hint     { @apply text-xs italic text-[#6b6b6b]; }
+  .artifact-root .ass-code     { @apply font-mono text-sm bg-[#1a1a1a] text-[#f4ecd8] px-1.5 py-0.5 rounded-none; }
+  .artifact-root .ass-kbd      { @apply font-mono text-xs bg-[#fffaf0] border border-[#1a1a1a] rounded-none px-1.5 py-0.5; }
+  .artifact-root .ass-divider  { @apply border-t-[3px] border-double border-[#1a1a1a] my-4; }
 
   /* —— Forms —— */
   .artifact-root .ass-field    { @apply flex flex-col mb-3; }
-  .artifact-root .ass-label    { @apply block text-sm font-medium text-gray-700 mb-1; }
+  .artifact-root .ass-label    { @apply block text-sm font-bold text-[#1a1a1a] mb-1; }
   .artifact-root .ass-input,
   .artifact-root .ass-textarea,
-  .artifact-root .ass-select   { @apply block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500; }
+  .artifact-root .ass-select   { @apply block w-full rounded-none border border-[#1a1a1a] bg-[#fffaf0] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#8b1e1e] focus:border-[#8b1e1e]; }
   .artifact-root .ass-textarea { @apply min-h-[6rem]; }
-  .artifact-root .ass-check-row{ @apply flex items-center gap-2 text-sm text-gray-700; }
+  .artifact-root .ass-check-row{ @apply flex items-center gap-2 text-sm text-[#1a1a1a]; }
 
   /* —— Buttons:base + variant,AI 写 class="ass-btn ass-btn-primary" —— */
-  .artifact-root .ass-btn          { @apply inline-flex items-center justify-center gap-1.5 rounded-md px-3.5 py-2 text-sm font-medium transition-colors disabled:opacity-50 cursor-pointer; }
-  .artifact-root .ass-btn-primary  { @apply bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800; }
-  .artifact-root .ass-btn-ghost    { @apply bg-white text-gray-700 border border-gray-300 hover:bg-gray-50; }
-  .artifact-root .ass-btn-danger   { @apply bg-red-600 text-white hover:bg-red-700; }
+  .artifact-root .ass-btn          { @apply inline-flex items-center justify-center gap-1.5 rounded-none border border-[#1a1a1a] px-3.5 py-2 text-sm font-bold uppercase tracking-wider transition-colors disabled:opacity-50 cursor-pointer; }
+  .artifact-root .ass-btn-primary  { @apply bg-[#1a1a1a] text-[#f4ecd8] hover:bg-[#8b1e1e] hover:border-[#8b1e1e]; }
+  .artifact-root .ass-btn-ghost    { @apply bg-transparent text-[#1a1a1a] border border-[#1a1a1a] hover:bg-[rgba(26,26,26,0.08)]; }
+  .artifact-root .ass-btn-danger   { @apply bg-[#8b1e1e] text-[#f4ecd8] border-[#8b1e1e] hover:bg-[#6b1414]; }
 
   /* —— Alerts:同样 base + variant —— */
-  .artifact-root .ass-alert         { @apply rounded-md border-l-4 p-3 text-sm; }
-  .artifact-root .ass-alert-info    { @apply bg-blue-50 border-blue-400 text-blue-800; }
-  .artifact-root .ass-alert-warn    { @apply bg-yellow-50 border-yellow-400 text-yellow-800; }
-  .artifact-root .ass-alert-danger  { @apply bg-red-50 border-red-500 text-red-800; }
+  .artifact-root .ass-alert         { @apply rounded-none border-l-4 p-3 text-sm; }
+  .artifact-root .ass-alert-info    { @apply bg-[#fffaf0] border-[#1a1a1a] text-[#1a1a1a]; }
+  .artifact-root .ass-alert-warn    { @apply bg-[#f7eccf] border-[#b8860b] text-[#7a5a00]; }
+  .artifact-root .ass-alert-danger  { @apply bg-[#f7e3e3] border-[#8b1e1e] text-[#8b1e1e]; }
 </style>
 <!-- 会话级 CSS 缓存:render_artifact 抽出来的 <style data-ai-scope> 规则注入到这里。
      type="text/tailwindcss" 让 Tailwind play CDN 编译里面的 @apply。 -->
