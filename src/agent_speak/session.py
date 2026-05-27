@@ -56,6 +56,10 @@ class SSEClient:
 class SessionState:
     sid: str
     artifact_html: str | None = None
+    # 会话级 CSS 缓存:AI 通过 <style data-ai-scope> 注册的类。
+    # key 是选择器(".card"),value 是规则体("@apply bg-white shadow ..." 或裸 CSS)。
+    # 仅内存,不落地。drop(sid) 时随会话一起消失。
+    styles: dict[str, str] = field(default_factory=dict)
     sse_writer: SSEClient | None = None
     submit_event: asyncio.Event = field(default_factory=asyncio.Event)
     submitted_data: Any = None  # 结构化 feedback: {user_comments, user_form_inputs}

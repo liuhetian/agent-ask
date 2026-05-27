@@ -14,6 +14,8 @@ Host 的核心职责:
 """
 from __future__ import annotations
 
+import re
+
 
 HTML_TEMPLATE = r"""<!DOCTYPE html>
 <html lang="zh-CN">
@@ -789,9 +791,50 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
   }
   #submit-overlay .subtitle strong { color: #8b1e1e; font-weight: 900; }
 </style>
+<!-- 预设语义类(永远可用,AI 不需要再 @apply 一遍)。
+     设计 token 跟 host 视觉对齐——蓝主色、灰背景、字号节奏。 -->
+<style id="ass-preset-styles" type="text/tailwindcss">
+  /* —— Layout —— */
+  .artifact-root .ass-panel    { @apply bg-white rounded-xl border border-gray-100 shadow-sm p-6 mb-4; }
+  .artifact-root .ass-section  { @apply mb-4; }
+  .artifact-root .ass-row      { @apply flex items-center gap-3; }
+  .artifact-root .ass-col      { @apply flex flex-col gap-3; }
+
+  /* —— Typography —— */
+  .artifact-root .ass-h1       { @apply text-2xl font-semibold text-gray-900 mb-3; }
+  .artifact-root .ass-h2       { @apply text-lg font-semibold text-gray-900 mb-2; }
+  .artifact-root .ass-hint     { @apply text-xs text-gray-500; }
+  .artifact-root .ass-code     { @apply font-mono text-sm bg-gray-100 text-gray-800 px-1.5 py-0.5 rounded; }
+  .artifact-root .ass-kbd      { @apply font-mono text-xs bg-gray-100 border border-gray-300 rounded px-1.5 py-0.5; }
+  .artifact-root .ass-divider  { @apply border-t border-gray-200 my-4; }
+
+  /* —— Forms —— */
+  .artifact-root .ass-field    { @apply flex flex-col mb-3; }
+  .artifact-root .ass-label    { @apply block text-sm font-medium text-gray-700 mb-1; }
+  .artifact-root .ass-input,
+  .artifact-root .ass-textarea,
+  .artifact-root .ass-select   { @apply block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500; }
+  .artifact-root .ass-textarea { @apply min-h-[6rem]; }
+  .artifact-root .ass-check-row{ @apply flex items-center gap-2 text-sm text-gray-700; }
+
+  /* —— Buttons:base + variant,AI 写 class="ass-btn ass-btn-primary" —— */
+  .artifact-root .ass-btn          { @apply inline-flex items-center justify-center gap-1.5 rounded-md px-3.5 py-2 text-sm font-medium transition-colors disabled:opacity-50 cursor-pointer; }
+  .artifact-root .ass-btn-primary  { @apply bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800; }
+  .artifact-root .ass-btn-ghost    { @apply bg-white text-gray-700 border border-gray-300 hover:bg-gray-50; }
+  .artifact-root .ass-btn-danger   { @apply bg-red-600 text-white hover:bg-red-700; }
+
+  /* —— Alerts:同样 base + variant —— */
+  .artifact-root .ass-alert         { @apply rounded-md border-l-4 p-3 text-sm; }
+  .artifact-root .ass-alert-info    { @apply bg-blue-50 border-blue-400 text-blue-800; }
+  .artifact-root .ass-alert-warn    { @apply bg-yellow-50 border-yellow-400 text-yellow-800; }
+  .artifact-root .ass-alert-danger  { @apply bg-red-50 border-red-500 text-red-800; }
+</style>
+<!-- 会话级 CSS 缓存:render_artifact 抽出来的 <style data-ai-scope> 规则注入到这里。
+     type="text/tailwindcss" 让 Tailwind play CDN 编译里面的 @apply。 -->
+<style id="ass-session-styles" type="text/tailwindcss">__INITIAL_STYLES__</style>
 </head>
 <body>
-<div id="container"></div>
+<div id="container" class="artifact-root"></div>
 <div id="highlight"></div>
 <div id="badge-layer"></div>
 <div id="notebook">
@@ -1409,9 +1452,15 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     everConnected = true;
     if (!hasArtifact) showStatus('等待 AI 发送内容...', 'text-gray-400');
   });
+  function upsertSessionStyles(css) {
+    const el = document.getElementById('ass-session-styles');
+    if (!el) return;
+    if (el.textContent !== css) el.textContent = css || '';
+  }
   es.addEventListener('artifact', (e) => {
     try {
       const d = JSON.parse(e.data);
+      if (typeof d.styles_css === 'string') upsertSessionStyles(d.styles_css);
       renderArtifact(d.html || '');
     } catch (err) {
       console.error('render failed', err);
@@ -1450,5 +1499,65 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
 """
 
 
-def render_html(sid: str) -> str:
-    return HTML_TEMPLATE.replace("__SID__", sid)
+def render_html(sid: str, styles_css: str = "") -> str:
+    return (
+        HTML_TEMPLATE
+        .replace("__SID__", sid)
+        .replace("__INITIAL_STYLES__", styles_css)
+    )
+
+
+# ───── 会话级 CSS 缓存的解析/拼装 ─────
+#
+# 约定:AI 用 <style data-ai-scope>.card { @apply ... }</style> 注册命名类。
+# 我们用最小正则把它抽出来:一个选择器一条规则、不嵌套、不 @media。这种"扁平
+# 类规则"形态是 doc 里强制的契约,不符合的规则被静默丢弃(AI 看返回值的
+# styles.active 就能知道哪条没生效)。带 data-reset 属性表示先清空再添加。
+
+# 匹配整个 <style ...>...</style>。group(1)=attrs 串,group(2)=内容。
+_STYLE_TAG = re.compile(r"<style\b([^>]*)>(.*?)</style>", re.IGNORECASE | re.DOTALL)
+# 匹配最浅一层的 selector { body }。嵌套花括号会让本式直接失配,从而丢弃,
+# 这是我们希望的安全副作用——不会错切。
+_FLAT_RULE = re.compile(r"([^{}]+)\{([^{}]*)\}", re.DOTALL)
+
+
+def extract_styles(html: str) -> tuple[str, dict[str, str], bool]:
+    """从 AI 输入 HTML 中抽 <style data-ai-scope>。
+
+    返回 (剥掉这些块后的 html, {selector: body}, 是否要求 reset)。
+    不带 data-ai-scope 的普通 <style> 块**原样保留**(前端 sanitizeInjected
+    会负责再剥掉,行为不变)。
+    """
+    rules: dict[str, str] = {}
+    reset = False
+
+    def _take(m: "re.Match[str]") -> str:
+        nonlocal reset
+        attrs = m.group(1) or ""
+        if "data-ai-scope" not in attrs.lower():
+            return m.group(0)  # 不是我们的,留给前端处理
+        if "data-reset" in attrs.lower():
+            reset = True
+        for r in _FLAT_RULE.finditer(m.group(2) or ""):
+            sel = r.group(1).strip()
+            body = r.group(2).strip().rstrip(";").strip()
+            if sel and body:
+                rules[sel] = body
+        return ""  # 抽走整个 <style data-ai-scope> 块
+
+    cleaned = _STYLE_TAG.sub(_take, html)
+    return cleaned, rules, reset
+
+
+def compose_styles_css(rules: dict[str, str]) -> str:
+    """把缓存桶拼成最终注入页面的 CSS 字符串。
+
+    所有选择器加 `.artifact-root ` 前缀,避免污染壳子(工具栏/日记本)。
+    """
+    if not rules:
+        return ""
+    lines = []
+    for sel, body in rules.items():
+        body = body.rstrip(";").strip()
+        lines.append(f".artifact-root {sel} {{ {body}; }}")
+    return "\n".join(lines)

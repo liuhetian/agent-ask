@@ -25,6 +25,7 @@ from fastmcp import Context, FastMCP
 from fastmcp.exceptions import ToolError
 
 from .session import CONFIG, SESSIONS, get_or_create, stdio_sid
+from .template import compose_styles_css, extract_styles
 
 
 logger = logging.getLogger("agent_speak.server")
@@ -45,7 +46,34 @@ def _archive_artifact(sid: str, html: str) -> None:
         logger.warning("archive failed for sid=%s", sid, exc_info=True)
 
 
-def _build_next_step(url: str, *, is_reuse: bool) -> str:
+def _styles_payload(state, added_or_updated: list[str], reset: bool) -> dict[str, Any]:
+    """工具返回值里的 styles 子字段:让 AI 看到桶当前状态。"""
+    return {
+        "active": sorted(state.styles.keys()),
+        "added_or_updated": added_or_updated,
+        "reset": reset,
+    }
+
+
+def _styles_hint(styles_active: dict[str, str] | None) -> str:
+    """会话级 CSS 缓存的提示文案;桶为空就返回空串。"""
+    if not styles_active:
+        return ""
+    names = ", ".join(sorted(styles_active.keys()))
+    return (
+        "\n\n样式复用提示:\n"
+        f"  本会话已自动缓存 {len(styles_active)} 个 CSS 类(在内存,不写盘):\n"
+        f"    {names}\n"
+        "  下次 render_artifact **不要**再重发这些类的 <style> 定义,直接\n"
+        "  用类名即可(例:<div class=\"card\">…</div>),服务端会自动注入。\n"
+        "  覆盖某个类:在新 <style data-ai-scope> 里同名写一遍。\n"
+        "  清空整个缓存:发 <style data-ai-scope data-reset></style>。"
+    )
+
+
+def _build_next_step(
+    url: str, *, is_reuse: bool, styles_active: dict[str, str] | None = None
+) -> str:
     """生成给 LLM 的下一步行动指引。
 
     - 首次(浏览器未连):必须先把 URL 交给用户,再据交互场景选 wait/poll。
@@ -62,7 +90,7 @@ def _build_next_step(url: str, *, is_reuse: bool) -> str:
             "ToolError,你来明确决定:再调一次 mode=\"wait\" 继续等,或者"
             "降级 mode=\"poll\" 让用户回来时主动来问。\n\n"
             f"(URL 仅供参考,不要再发给用户:{url})"
-        )
+        ) + _styles_hint(styles_active)
 
     if CONFIG.stdio_mode:
         step1 = (
@@ -94,7 +122,7 @@ def _build_next_step(url: str, *, is_reuse: bool) -> str:
         "如果本次 MCP 会话稍后再调 render_artifact 而他的 tab 还活着,"
         "下一次返回的 next_step 会跳过第 1 步,直接让你进 wait 模式。"
     )
-    return f"{step1}\n\n{step2}"
+    return f"{step1}\n\n{step2}{_styles_hint(styles_active)}"
 
 
 RENDER_DOC = """把一份 UI artifact 推给用户。用户可以填写任意表单字段;开启
@@ -126,10 +154,58 @@ RENDER_DOC = """把一份 UI artifact 推给用户。用户可以填写任意表
 
 `html` 契约:
 - 纯 HTML(通过 innerHTML 注入)。**禁止** React、JSX、useState。
-- **样式必须用 Tailwind 工具类。** Tailwind CDN 已预加载。`<style>` 块和
-  `<link rel="stylesheet">` 标签在注入时会被剥掉(它们会污染整页样式、冲
-  掉 host 的工具栏/日记本),**不要依赖它们**。行内 `style="..."` 属性会
-  保留作为应急通道,但请优先用 Tailwind 类,以便和 host 视觉风格统一。
+- **样式默认用 Tailwind 工具类**(Tailwind CDN 已预加载,所有 `bg-*` /
+  `p-*` / `hover:*` 等开箱即用)。
+- **优先用预设语义类**(已内置,跟 host 视觉风格统一,直接用类名,**不必
+  再 @apply**):
+    布局:`ass-panel`(白底卡片) `ass-section`(段落间距)
+          `ass-row`(横排 flex) `ass-col`(竖排 flex)
+    文字:`ass-h1` `ass-h2` `ass-hint`(灰小字)
+          `ass-code`(行内代码) `ass-kbd`(键盘按键) `ass-divider`
+    表单:`ass-field`(label+input 竖排容器) `ass-label`
+          `ass-input` `ass-textarea` `ass-select`
+          `ass-check-row`(复选/单选横排容器)
+    按钮:`ass-btn`(基类,**必带**)+ 一个 variant:
+          `ass-btn-primary`(主蓝)`ass-btn-ghost`(白底灰边)
+          `ass-btn-danger`(红)
+          写法:`<button class="ass-btn ass-btn-primary">下一步</button>`
+    提示:`ass-alert`(基类)+ 一个 variant:
+          `ass-alert-info`(蓝)`ass-alert-warn`(黄)`ass-alert-danger`(红)
+          写法:`<div class="ass-alert ass-alert-warn">...</div>`
+  示例(纯用预设,完全不写 <style>):
+    <div class="ass-panel">
+      <h1 class="ass-h1">新项目</h1>
+      <div class="ass-field">
+        <label class="ass-label" for="n">项目名</label>
+        <input id="n" data-ai-id="name" class="ass-input" />
+      </div>
+      <button class="ass-btn ass-btn-primary" data-ai-id="next">下一步</button>
+    </div>
+- **会话级 CSS 复用(自动保存,不必你管)**:如果同一个组件在多轮里反复
+  出现,可以在 HTML 里写一个 `<style data-ai-scope>...</style>` 块定义命名
+  类——服务端会**自动把里面的规则抽出来缓存到本会话内存**(不写盘),并在
+  每次 render 时自动注入页面。**下一次 render_artifact,直接 `class="card"`
+  即可,不要再重发 <style> 定义**。返回值的 `styles.active` 列出当前会话
+  已缓存的全部类名,`styles.added_or_updated` 是这次新增/修改的。
+  能被保存的 `<style>` 必须满足三条:
+    1. 标签上带 `data-ai-scope` 属性(否则按"普通 style"剥掉,不保存)。
+    2. **一个选择器一条规则,扁平结构**——不要嵌套、不要 `@media`、
+       不要 `@keyframes`、不要逗号串选择器。服务端用最小正则解析,
+       不符合的规则会被静默丢弃。
+    3. 规则体推荐 `@apply <tailwind 工具类...>;`,也可以直接写 CSS 属性。
+  示例(第 1 轮):
+    <style data-ai-scope>
+      .card        { @apply bg-white shadow rounded-xl p-6 mb-4; }
+      .btn-primary { @apply bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded; }
+    </style>
+    <div class="card"><button class="btn-primary">下一步</button></div>
+  第 2 轮(没有 <style>,服务端自动注入):
+    <div class="card"><button class="btn-primary">创建</button></div>
+  覆盖某个类:在新 `<style data-ai-scope>` 里同名写一遍。
+  清空整个缓存桶:发 `<style data-ai-scope data-reset></style>`。
+- **会被剥掉、不会保存**:不带 `data-ai-scope` 的普通 `<style>`、
+  `<link rel="stylesheet">` 标签。行内 `style="..."` 属性保留作为应急
+  通道,但请优先用 Tailwind 类或缓存类。
 - **HTML 里不能有任何交互。** `<script>`、`<iframe>`、`<object>`、
   `<embed>`、`<link>`、`<meta>`、`<base>`、`<html>`、`<head>`、`<body>`
   这些标签会被剥掉;每一个 `on*` 属性(`onclick`、`onchange`……)也会被
@@ -192,17 +268,29 @@ async def render_artifact(html: str, ctx: Context) -> dict[str, Any]:
     # 复用判定:SSE 还活着 = 用户上次没关 tab,新 artifact 直接推过去即可。
     is_reuse = state.sse_writer is not None
 
-    state.artifact_html = html
+    # 抽出 <style data-ai-scope> 并入会话样式桶。cleaned 是不含这些 style
+    # 块的 html,推给前端的就是它(避免重复)。归档落地仍是 AI 原文。
+    cleaned, new_rules, reset = extract_styles(html)
+    if reset:
+        state.styles.clear()
+    added_or_updated = [s for s in new_rules if state.styles.get(s) != new_rules[s]]
+    state.styles.update(new_rules)
+    styles_css = compose_styles_css(state.styles)
+
+    state.artifact_html = cleaned
     state.submit_event = asyncio.Event()
     # submitted_data 故意不清:AI 可能重复查询(怕错过),保留上一次的结果
     # 让 wait_user_feedback 总能返回"最近一次已提交"的内容。新一轮是否完成
     # 由 submit_event 决定,与 submitted_data 是否有值无关。
     state.error = None
 
-    _archive_artifact(sid, html)
+    _archive_artifact(sid, html)  # 归档保留原文,可回放 AI 原始输入
 
     if is_reuse:
-        await state.sse_writer.send("artifact", {"html": html})
+        await state.sse_writer.send("artifact", {
+            "html": cleaned,
+            "styles_css": styles_css,
+        })
 
     url = f"{CONFIG.base_url.rstrip('/')}/ui/{sid}"
 
@@ -237,13 +325,15 @@ async def render_artifact(html: str, ctx: Context) -> dict[str, Any]:
                     f"mode='wait', max_wait_seconds=180)。\n"
                     f"  • 把控制权交还给对话:调 wait_user_feedback("
                     f"sid='{sid}', mode='poll'),等用户之后主动来问。"
-                ),
+                ) + _styles_hint(state.styles),
+                "styles": _styles_payload(state, added_or_updated, reset),
             }
         feedback = _finalize(state)  # {"feedback": ...} 或 raise ToolError
         return {
             "sid": sid,
             "url": url,
             "reused_tab": True,
+            "styles": _styles_payload(state, added_or_updated, reset),
             **feedback,
         }
 
@@ -252,7 +342,8 @@ async def render_artifact(html: str, ctx: Context) -> dict[str, Any]:
         "url": url,
         "status": "pending",
         "reused_tab": False,
-        "next_step": _build_next_step(url, is_reuse=False),
+        "next_step": _build_next_step(url, is_reuse=False, styles_active=state.styles),
+        "styles": _styles_payload(state, added_or_updated, reset),
     }
 
 

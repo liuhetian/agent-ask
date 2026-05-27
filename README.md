@@ -73,6 +73,25 @@ uv run agent-speak --http \            # streamable-http 模式
 
 ## 接入 MCP 客户端
 
+### 直接用公网托管版(最快)
+
+不想自己跑,直接接已经部署好的实例:
+
+```json
+{
+  "mcpServers": {
+    "agent-ask": {
+      "url": "https://agent-ask.liuhetian.work/mcp",
+      "transport": "streamable-http"
+    }
+  }
+}
+```
+
+加进你的 MCP 客户端配置(Claude Code、Claude Desktop 等)就能用。无需安装、无需端口、无需反代。
+
+> 公网实例无鉴权,会话 URL 是 UUID 强度的——别在公开场合贴出来。介意隐私就跑本地 stdio。
+
 ### 本地 stdio
 
 仓库内开发期:
@@ -86,20 +105,6 @@ uv run agent-speak --http \            # streamable-http 模式
     }
   }
 }
-```
-
-发布到 PyPI 之后:
-
-```json
-{ "mcpServers": { "agent-speak": { "command": "uvx", "args": ["agent-speak"] } } }
-```
-
-### 公网 streamable-http
-
-把 `agent-speak --http --public-url https://ask.example.com ...` 跑在 TLS 反代后面(Caddyfile 例:`ask.example.com { reverse_proxy localhost:8000 }`),客户端配置:
-
-```json
-{ "url": "https://ask.example.com/mcp", "transport": "streamable-http" }
 ```
 
 ## 写一份 UI

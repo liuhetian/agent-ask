@@ -9,7 +9,7 @@ from starlette.responses import HTMLResponse, JSONResponse, Response, StreamingR
 from starlette.routing import Route
 
 from .session import SESSIONS, SSEClient, get_or_create
-from .template import render_html
+from .template import compose_styles_css, render_html
 
 
 logger = logging.getLogger("agent_speak.http")
@@ -17,7 +17,11 @@ logger = logging.getLogger("agent_speak.http")
 
 async def ui_root(request: Request) -> HTMLResponse:
     sid = request.path_params["sid"]
-    return HTMLResponse(render_html(sid))
+    # 若会话已有 styles 桶(用户刷新页面、或新 tab 接管),把累计样式
+    # 内联到初始 HTML,避免要等下一次 SSE artifact 才生效。
+    state = SESSIONS.get(sid)
+    styles_css = compose_styles_css(state.styles) if state else ""
+    return HTMLResponse(render_html(sid, styles_css))
 
 
 async def ui_events(request: Request) -> StreamingResponse:
@@ -35,7 +39,10 @@ async def ui_events(request: Request) -> StreamingResponse:
 
     # 上线即把当前 artifact 推过去(若未提交)
     if state.artifact_html is not None and not state.submit_event.is_set():
-        await writer.send("artifact", {"html": state.artifact_html})
+        await writer.send("artifact", {
+            "html": state.artifact_html,
+            "styles_css": compose_styles_css(state.styles),
+        })
 
     async def gen():
         # 立即推一个 retry 提示,然后开始正常流
