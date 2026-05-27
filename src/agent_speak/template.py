@@ -28,7 +28,13 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
   html, body { height: 100%; margin: 0; }
   body { background: #e9e0ca; color: #1a1a1a; font-family: ui-sans-serif, system-ui, -apple-system, sans-serif; }
 
-  #container { min-height: 100vh; }
+  #container {
+    min-height: 100vh;
+    max-width: 880px;
+    margin: 0 auto;
+    padding: 32px 20px;
+    box-sizing: border-box;
+  }
   #container[data-frozen="true"] { opacity: 0.5; pointer-events: none; }
 
   /* Crosshair while inspecting — scoped to artifact only */
