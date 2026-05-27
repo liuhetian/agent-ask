@@ -154,10 +154,11 @@ RENDER_DOC = """把一份 UI artifact 推给用户。用户可以填写任意表
 
 `html` 契约:
 - 纯 HTML(通过 innerHTML 注入)。**禁止** React、JSX、useState。
-- **样式默认用 Tailwind 工具类**(Tailwind CDN 已预加载,所有 `bg-*` /
-  `p-*` / `hover:*` 等开箱即用)。
-- **优先用预设语义类**(已内置,跟 host 视觉风格统一,直接用类名,**不必
-  再 @apply**):
+- **默认就用预设语义类(`ass-*`)**:已内置、跟 host 视觉风格统一,直接写
+  类名即可,**不必再 @apply**。能用预设类表达的版式就别再手堆 Tailwind
+  工具类——预设类才是默认风格,排版/间距/配色都已对齐 host。Tailwind 工具
+  类(`bg-*` / `p-*` / `hover:*`,CDN 已预加载)只在预设类没覆盖到的细节
+  微调时才用。预设类清单:
     布局:`ass-panel`(白底卡片) `ass-section`(段落间距)
           `ass-row`(横排 flex) `ass-col`(竖排 flex)
     文字:`ass-h1` `ass-h2` `ass-hint`(灰小字)
@@ -168,18 +169,19 @@ RENDER_DOC = """把一份 UI artifact 推给用户。用户可以填写任意表
     按钮:`ass-btn`(基类,**必带**)+ 一个 variant:
           `ass-btn-primary`(主蓝)`ass-btn-ghost`(白底灰边)
           `ass-btn-danger`(红)
-          写法:`<button class="ass-btn ass-btn-primary">下一步</button>`
+          **仅用于纯展示**(如示意一个不可点的视觉按钮),**绝不**用来
+          做提交——提交见下方交互规则。一般情况下你根本不需要写按钮。
     提示:`ass-alert`(基类)+ 一个 variant:
           `ass-alert-info`(蓝)`ass-alert-warn`(黄)`ass-alert-danger`(红)
           写法:`<div class="ass-alert ass-alert-warn">...</div>`
-  示例(纯用预设,完全不写 <style>):
+  示例(纯用预设,完全不写 <style>,也不写提交按钮):
     <div class="ass-panel">
       <h1 class="ass-h1">新项目</h1>
       <div class="ass-field">
         <label class="ass-label" for="n">项目名</label>
         <input id="n" data-ai-id="name" class="ass-input" />
       </div>
-      <button class="ass-btn ass-btn-primary" data-ai-id="next">下一步</button>
+      <p class="ass-hint">填完点右下角「发送」即可提交。</p>
     </div>
 - **会话级 CSS 复用(自动保存,不必你管)**:如果同一个组件在多轮里反复
   出现,可以在 HTML 里写一个 `<style data-ai-scope>...</style>` 块定义命名
@@ -195,12 +197,12 @@ RENDER_DOC = """把一份 UI artifact 推给用户。用户可以填写任意表
     3. 规则体推荐 `@apply <tailwind 工具类...>;`,也可以直接写 CSS 属性。
   示例(第 1 轮):
     <style data-ai-scope>
-      .card        { @apply bg-white shadow rounded-xl p-6 mb-4; }
-      .btn-primary { @apply bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded; }
+      .card  { @apply bg-white shadow rounded-xl p-6 mb-4; }
+      .pill  { @apply inline-block bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded-full; }
     </style>
-    <div class="card"><button class="btn-primary">下一步</button></div>
+    <div class="card"><span class="pill">草稿</span> 项目 A</div>
   第 2 轮(没有 <style>,服务端自动注入):
-    <div class="card"><button class="btn-primary">创建</button></div>
+    <div class="card"><span class="pill">已归档</span> 项目 B</div>
   覆盖某个类:在新 `<style data-ai-scope>` 里同名写一遍。
   清空整个缓存桶:发 `<style data-ai-scope data-reset></style>`。
 - **会被剥掉、不会保存**:不带 `data-ai-scope` 的普通 `<style>`、
@@ -210,6 +212,13 @@ RENDER_DOC = """把一份 UI artifact 推给用户。用户可以填写任意表
   `<embed>`、`<link>`、`<meta>`、`<base>`、`<html>`、`<head>`、`<body>`
   这些标签会被剥掉;每一个 `on*` 属性(`onclick`、`onchange`……)也会被
   剥。所有交互——悬停高亮、批注编辑、表单收集、提交——都由 host 接管。
+- **不要自己写"提交/发送/确定/保存/下一步"这类按钮。** 提交**只**由 host
+  右下角固定工具栏里的「发送」绿色按钮完成(用户填完表单后自己点)。你写的
+  任何 `<button>` 的 `onclick` 都会被剥掉,点了**毫无反应**,只会让用户以为
+  能点、白等一场。你只管把表单字段(`<input>`/`<select>`/`<textarea>`)和
+  它们的 `<label>`、`data-ai-id` 写好,host 会在用户点「发送」时自动收集并
+  通过 `wait_user_feedback` 回传给你。`ass-btn` 仅在确实需要一个"纯展示、
+  不承担任何动作"的视觉按钮时才用。
 - 每一个有意义的元素都加一个稳定、描述清晰的 `data-ai-id="kebab-case-id"`,
   host 通过它寻址、批注、回传。例:
     <h1 data-ai-id="hero-title" class="text-3xl font-bold">...</h1>
