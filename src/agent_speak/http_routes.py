@@ -9,7 +9,7 @@ from starlette.responses import HTMLResponse, JSONResponse, Response, StreamingR
 from starlette.routing import Route
 
 from .session import SESSIONS, SSEClient, get_or_create
-from .template import compose_styles_css, render_html
+from .template import compose_styles_css, render_html, template_css
 
 
 logger = logging.getLogger("agent_speak.http")
@@ -17,11 +17,12 @@ logger = logging.getLogger("agent_speak.http")
 
 async def ui_root(request: Request) -> HTMLResponse:
     sid = request.path_params["sid"]
-    # 若会话已有 styles 桶(用户刷新页面、或新 tab 接管),把累计样式
-    # 内联到初始 HTML,避免要等下一次 SSE artifact 才生效。
+    # 把模版预设 + 会话自定义样式内联到初始 HTML(用户刷新/新 tab 接管时),
+    # 避免要等下一次 SSE 事件才生效。会话不存在时用默认模版。
     state = SESSIONS.get(sid)
-    styles_css = compose_styles_css(state.styles) if state else ""
-    return HTMLResponse(render_html(sid, styles_css))
+    preset_css = template_css(state.template if state else None)
+    session_css = compose_styles_css(state.styles) if state else ""
+    return HTMLResponse(render_html(sid, preset_css, session_css))
 
 
 async def ui_events(request: Request) -> StreamingResponse:
@@ -37,11 +38,18 @@ async def ui_events(request: Request) -> StreamingResponse:
     writer = SSEClient()
     state.sse_writer = writer
 
-    # 上线即把当前 artifact 推过去(若未提交)
+    # 上线即把当前 artifact 推过去(若未提交);否则至少把当前皮肤推过去,
+    # 让"等待内容中"的空壳页也带上已选模版的样式。
     if state.artifact_html is not None and not state.submit_event.is_set():
         await writer.send("artifact", {
             "html": state.artifact_html,
-            "styles_css": compose_styles_css(state.styles),
+            "preset_css": template_css(state.template),
+            "session_css": compose_styles_css(state.styles),
+        })
+    else:
+        await writer.send("styles", {
+            "preset_css": template_css(state.template),
+            "session_css": compose_styles_css(state.styles),
         })
 
     async def gen():

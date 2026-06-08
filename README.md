@@ -4,10 +4,13 @@
 
 ## 这是什么
 
-`agent-speak` 是一个 MCP server,把 AI 的输出从"长 markdown"变成"可交互页面"。它对外只暴露两件事:
+`agent-speak` 是一个 MCP server,把 AI 的输出从"长 markdown"变成"可交互页面"。它对外暴露三件事:
 
-- **把一份 UI 推给用户**——AI 提交一段带 Tailwind 样式、带稳定锚点的静态 HTML,服务端送到对应用户的浏览器 tab 里。
-- **取回用户的反馈**——用户填完表单、写完批注、点了发送之后,前端壳子把所有内容打包成结构化反馈回传给 AI。
+- **注册皮肤(`register_css`)**——会话第一步。选一套内置模版(报纸 / 极简白 / 暗夜霓虹 / 柔和糖果 / 杂志大刊)或注册自定义 CSS,拿到要交给用户打开的 URL(打开后预热连接),并把模版的完整 CSS 源码回传给 AI 参考。
+- **推一份 UI(`render_artifact`)**——AI 提交一段用 `ass-*` 语义类、带稳定锚点的静态 HTML,服务端推到用户已打开的 tab,然后**同步阻塞**等用户提交,一次工具调用就把反馈带回来(省掉一次大模型往返)。
+- **取回反馈(`wait_user_feedback`)**——render 超时还没等到时的续等 / 异步查询手段。
+
+所有模版**共用同一组 `ass-*` 语义类**,所以换模版时 AI 的 HTML 一个字都不用改——切的只是皮肤。
 
 核心约定:**AI 永远不写交互代码**(没有事件绑定、没有状态、没有脚本)。所有交互——悬停高亮、批注、表单收集、提交——全部由浏览器这一侧的壳子负责。AI 写错了也只会"画得难看",绝不会卡住提交链路。
 
@@ -26,34 +29,35 @@
 
 提交完页面**不会关闭**,顶上会盖一层"请保持页面打开"的提示,等下一稿推过来时自动消失。
 
-## 两种渲染路径
+## 渲染流程
 
-服务端每次推一份新 UI 时,会自己判断当前会话的浏览器 tab 是否还连着:
+固定两步,没有"一次同步一次异步"的分支——心智模型统一:
 
-### A) 首次推送,或上次的 tab 已关闭
+### 1) `register_css`——选皮肤 + 给 URL
 
-服务端**立即返回**待处理状态(只有 URL,还没有反馈),**不阻塞**。AI 收到后该做的事:
+会话开场调一次:选模版(默认 `报纸`)或传一段自定义 `css`。返回里有:
 
-1. 先把 URL 告诉用户,问他"现在就开还是事后再看"。
-2. 据回答选后续姿势:
-   - **事后再看 / 转交别人**(默认,异步):什么工具都不调。等用户主动问"回了没",再去调取反馈工具(默认是"查一次就返回",立即给到当前进度)。
-   - **现在就填**(交互):调取反馈工具的"同步等待"模式,阻塞最多 60 秒(硬上限 3 分钟);超时由 AI 自己决定是继续等,还是降级到"查一次就返回"。
+- `url`:**交给用户,让他现在就打开**。页面先显示"等待内容中",这一步把 SSE 连接预热好——之后每次 render 都能直接同步拿反馈。
+- `preset_css`:所选模版的完整 CSS 源码(`@apply` 的实际内容),方便 AI 写自定义类时跟模版对齐。
+- `available_templates`:可选模版清单。
 
-### B) 复用上一个 tab(浏览器仍在线)
+可**反复调用**:中途加新类、换模版、`reset` 清空都行;用户页面已开的话,样式**热更新**,不重渲染。
 
-用户上一稿提交后没关页面,新一稿通过推送直接送上去——这时**推送本身就内置了等待**,最多挂 3 分钟等用户提交:
+### 2) `render_artifact`——推 UI + 同步等反馈
 
-- 提交了:直接把反馈一并捎回来,AI 不必再调取反馈工具,也不必再把 URL 念一遍。
-- 这 3 分钟用户没动:**仍然算推送成功**(不是失败、不是渲染挂掉),只是用户慢了一拍。返回里写明"render 成功,用户尚未提交,URL 不变",AI 自己决定是继续调取反馈工具等,还是把控制权交还给对话。
+把 HTML 推到已打开的页面,然后**同步阻塞**最多 `max_wait_seconds`(默认 180、上限 180)等用户提交:
 
-> 注意:这 3 分钟的同步阻塞可能超过某些 MCP 客户端的默认工具超时。如果客户端提前中止,服务端状态仍在——AI 再去调一次取反馈工具接回来即可。
+- **提交了**:返回 `{feedback}`。一次工具调用同时完成"推 + 收",不必再调别的工具。
+- **超时了**:返回 `{status:"pending", connected}`。`connected:true` = 页面在线、只是用户慢了一拍(**别重推**);`connected:false` = 用户大概还没打开 URL(提醒他打开)。两种都用下面的 `wait_user_feedback` 接力。
 
-## 取反馈工具的两种模式
+> 注意:同步阻塞可能超过某些 MCP 客户端的默认工具超时。客户端提前中止时服务端状态仍在——再调一次 `wait_user_feedback` 接回来即可。
+
+### 3) `wait_user_feedback`——续等 / 异步查询
 
 | 模式 | 行为 | 用途 |
 | --- | --- | --- |
-| 查一次就返回(默认) | 立即返回:已提交则给反馈,否则给"还没提交 + URL" | 异步审批场景。**不要自动重试**,等用户来问。 |
-| 同步等待 | 阻塞最多指定秒数(钳制在 1–180 秒)。提交则返回反馈;**超时抛错**(不返回"还没提交")。 | 用户当面、正盯着屏幕。超时强制 AI 做明确选择。 |
+| `poll`(默认) | 立即返回:已提交则给反馈,否则给"还没提交 + URL" | 异步审批场景。**不要自动重试**,等用户来问。 |
+| `wait` | 阻塞最多指定秒数(钳制在 1–180 秒)。提交则返回反馈;**超时抛错**(不返回"还没提交")。 | 用户当面、正盯着屏幕。超时强制 AI 做明确选择。 |
 
 ## 启动
 
@@ -109,21 +113,22 @@ uv run agent-speak --http \            # streamable-http 模式
 
 ## 写一份 UI
 
-把一段纯 HTML 字符串交给推送工具,服务端就会把它送到用户的浏览器 tab 里:
+先 `register_css` 选好皮肤,再把一段纯 HTML 交给 `render_artifact`——优先用 `ass-*` 语义类(跟所选模版风格统一,无需自己堆样式):
 
 ```html
-<div class="p-8 max-w-md mx-auto">
-  <h1 data-ai-id="title" class="text-2xl font-semibold mb-4">
-    新项目配置
-  </h1>
-  <label for="n" class="block text-sm mb-1">项目名</label>
-  <input id="n" data-ai-id="project-name" type="text"
-         class="block w-full border rounded px-3 py-2 mb-4" />
-  <label class="flex items-center gap-2 text-sm">
+<div class="ass-panel">
+  <h1 data-ai-id="title" class="ass-h1">新项目配置</h1>
+  <div class="ass-field">
+    <label for="n" class="ass-label">项目名</label>
+    <input id="n" data-ai-id="project-name" type="text" class="ass-input" />
+  </div>
+  <label class="ass-check-row">
     <input data-ai-id="want-auth" type="checkbox" /> 需要登录
   </label>
 </div>
 ```
+
+预设类清单:布局 `ass-panel`/`ass-section`/`ass-row`/`ass-col`;文字 `ass-h1`/`ass-h2`/`ass-hint`/`ass-code`/`ass-kbd`/`ass-divider`;表单 `ass-field`/`ass-label`/`ass-input`/`ass-textarea`/`ass-select`/`ass-check-row`;按钮 `ass-btn` + `ass-btn-primary`/`ass-btn-ghost`/`ass-btn-danger`;提示 `ass-alert` + `ass-alert-info`/`ass-alert-warn`/`ass-alert-danger`。需要新类就去 `register_css(css=...)` 注册,别在 HTML 里写 `<style>`。
 
 用户提交后,反馈大概长这样:
 
@@ -147,7 +152,7 @@ uv run agent-speak --http \            # streamable-http 模式
 ### HTML 的几条契约
 
 - **纯 HTML**(通过 innerHTML 注入),不能写 React / JSX / 任何状态。
-- **样式只能用 Tailwind 工具类**(CDN 已预加载)。`<style>` 块和外链样式表会在注入时被剥掉(否则会污染整页、冲掉前端壳子),不要依赖。行内样式属性保留作为应急通道,但请优先用 Tailwind。
+- **样式优先用 `ass-*` 预设类**(模版已注入),其次 Tailwind 工具类(CDN 已预加载)。要自定义类去 `register_css(css=...)` 注册。`<style>` 块和外链样式表会在注入时被剥掉(否则会污染整页、冲掉前端壳子),不要在 HTML 里写。行内样式属性保留作为应急通道,但请优先用预设类。
 - **不能有任何交互代码**:`<script>`、`<iframe>`、`<object>`、`<embed>`、`<link>`、`<meta>`、`<base>`、`<html>`、`<head>`、`<body>` 这些标签注入时会被剥;所有事件属性(`onclick`、`onchange` ……)也会被剥。所有交互都由前端壳子接管。
 - 每个有意义的元素都加一个稳定、描述清晰的 `data-ai-id="kebab-case-id"` 锚点,前端壳子通过它寻址、批注、回传。
 - 每个表单输入都配一个 `<label>`(包裹式或用 `for=` 都行),前端壳子会自动把人类可读的标签和值绑在一起。
