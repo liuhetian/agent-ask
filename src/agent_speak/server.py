@@ -1,4 +1,4 @@
-"""FastMCP 实例 + register_css / render_artifact / wait_user_feedback 三件套。
+"""FastMCP 实例 + set_session / render_artifact / wait_user_feedback 三件套。
 
 设计原则
 --------
@@ -7,7 +7,7 @@
 2. 浏览器 host 负责"收回来"——批注、表单收集、提交,都在 host 一侧实现,
    不依赖 AI 代码的正确性。
 3. 固定流程,消除"一次同步一次异步"的歧义:
-   - register_css:**会话第一步(必做)**。选皮肤(模版/自定义 CSS)+ 拿 URL 交给
+   - set_session:**会话第一步(必做)**。选皮肤(模版/自定义 CSS)+ 拿 URL 交给
      用户打开(预热 SSE 连接)+ 把皮肤源码与 render 的 html 写法契约回传给 AI。
    - render_artifact:把 HTML 推到已打开的页面,**同步阻塞**等用户提交,最多
      max_wait_seconds(默认 180)。一次调用同时完成"推 + 收",省掉一次大模型往返。
@@ -33,6 +33,7 @@ from .template import (
     compose_styles_css,
     parse_css_rules,
     template_css,
+    template_guide,
 )
 
 
@@ -80,7 +81,7 @@ def _finalize(state) -> dict[str, Any]:
 REGISTER_DOC = """**渲染html第一步(必做)**:选定页面皮肤,拿到要交给用户打开的 URL,
 并取得 render_artifact 的 html 写法契约。
 
-做四件事:
+做五件事:
   1. 选皮肤——`template` 选一套内置模版(**默认且推荐 "报纸"**),
      和/或 `css` 注册你自己的命名类。
   2. 返回 `url`:**把它交给用户,让他现在就打开**——页面会先显示"等待内容中",
@@ -89,6 +90,8 @@ REGISTER_DOC = """**渲染html第一步(必做)**:选定页面皮肤,拿到要�
      让你写自定义类时配色/间距能跟模版对齐。
   4. 返回 `render_html_contract`:render_artifact 的 `html` 参数到底怎么写
      (语义类清单、data-ai-id 锚点、提交规则)——**render 之前务必照它写**。
+  5. 返回 `template_guide`:这套模版适合什么内容、版面节奏怎么排(长材料的
+     层级 / 重心 / 留白思路)——照着它编排,别只是套对类名。
 
 参数:
   • template:模版名,二选一地传。可选值见返回的 `available_templates`,
@@ -108,11 +111,11 @@ REGISTER_DOC = """**渲染html第一步(必做)**:选定页面皮肤,拿到要�
 
 
 # render_artifact 的 html 写法契约。**故意不放进 RENDER_DOC**(那是常驻 tool
-# description,每轮都吃 token),而是由 register_css 在运行时通过 render_html_contract
+# description,每轮都吃 token),而是由 set_session 在运行时通过 render_html_contract
 # 字段返回一次——AI 在会话第一步就拿到,render 时照着写即可。
 HTML_CONTRACT = """`html` 写法契约:
 - 纯 HTML(通过 innerHTML 注入)。**禁止** React/JSX/useState。
-- **默认就用 ass-* 语义类**(register_css 选的模版已注入,跟 host 风格统一):
+- **默认就用 ass-* 语义类**(set_session 选的模版已注入,跟 host 风格统一):
     布局:`ass-panel`(卡片) `ass-section` `ass-row`(横排) `ass-col`(竖排)
     文字:`ass-h1` `ass-h2` `ass-hint`(小灰字) `ass-code` `ass-kbd` `ass-divider`
     表单:`ass-field`(label+控件容器) `ass-label` `ass-input` `ass-textarea`
@@ -120,7 +123,7 @@ HTML_CONTRACT = """`html` 写法契约:
     按钮:`ass-btn`(基类,必带)+ `ass-btn-primary`/`ass-btn-ghost`/`ass-btn-danger`
           —— 仅纯展示用,**绝不**拿来做提交(提交见下)。
     提示:`ass-alert` + `ass-alert-info`/`ass-alert-warn`/`ass-alert-danger`
-  能用预设类表达的版式就别再手堆 Tailwind 工具类。需要新类就去 register_css 注册,
+  能用预设类表达的版式就别再手堆 Tailwind 工具类。需要新类就去 set_session 注册,
   **不要**在 html 里写 `<style>`(会被剥掉)。
   示例:
     <div class="ass-panel">
@@ -145,10 +148,10 @@ HTML_CONTRACT = """`html` 写法契约:
 
 RENDER_DOC = """把一份 UI artifact 推给用户,并**同步阻塞**等他提交反馈。
 
-前置:先调过 register_css 进行预热
+前置:先调过 set_session 进行预热
 
 参数:
-  • html:纯 HTML 字符串,**写法见 register_css 返回的 `render_html_contract`**。
+  • html:纯 HTML 字符串,**写法见 set_session 返回的 `render_html_contract`**。
   • max_wait_seconds:等待用户回复的同步阻塞时间上限,默认 180。
 """
 
@@ -157,7 +160,7 @@ WAIT_DOC = """render_artifact 获取结果，可设置最多等待时间"""
 
 
 @mcp.tool(description=REGISTER_DOC)
-async def register_css(
+async def set_session(
     ctx: Context,
     template: str | None = None,
     css: str | None = None,
@@ -215,6 +218,7 @@ async def register_css(
         "added_or_updated": sorted(added),
         "connected": connected,
         "render_html_contract": HTML_CONTRACT,
+        "template_guide": template_guide(state.template),
         "next_step": next_step,
     }
 
@@ -291,7 +295,7 @@ async def wait_user_feedback(
     state = SESSIONS.get(sid)
     if state is None:
         raise ToolError(
-            "本会话还没渲染过 artifact——先调 register_css,再 render_artifact。"
+            "本会话还没渲染过 artifact——先调 set_session,再 render_artifact。"
         )
 
     if state.submit_event.is_set():

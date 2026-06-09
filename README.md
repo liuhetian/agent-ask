@@ -6,7 +6,7 @@
 
 `agent-speak` 是一个 MCP server,把 AI 的输出从"长 markdown"变成"可交互页面"。它对外暴露三件事:
 
-- **注册皮肤(`register_css`)**——会话第一步。选一套内置模版(报纸 / 极简白 / 暗夜霓虹 / 柔和糖果 / 杂志大刊)或注册自定义 CSS,拿到要交给用户打开的 URL(打开后预热连接),并把模版的完整 CSS 源码、以及 `render_artifact` 的 HTML 写法契约一并回传给 AI 参考。
+- **注册皮肤(`set_session`)**——会话第一步。选一套内置模版(报纸 / 极简白 / 暗夜霓虹 / 柔和糖果 / 杂志大刊)或注册自定义 CSS,拿到要交给用户打开的 URL(打开后预热连接),并把模版的完整 CSS 源码、以及 `render_artifact` 的 HTML 写法契约一并回传给 AI 参考。
 - **推一份 UI(`render_artifact`)**——AI 提交一段用 `ass-*` 语义类、带稳定锚点的静态 HTML,服务端推到用户已打开的 tab,然后**同步阻塞**等用户提交,一次工具调用就把反馈带回来(省掉一次大模型往返)。页面还没连上时**立即返回 URL、不空等**。
 - **取回反馈(`wait_user_feedback`)**——render 超时还没等到时的续等 / 异步查询手段。
 
@@ -33,7 +33,7 @@
 
 固定顺序,没有"一次同步一次异步"的分支——心智模型统一:
 
-### 1) `register_css`——选皮肤 + 给 URL + 发契约
+### 1) `set_session`——选皮肤 + 给 URL + 发契约
 
 会话开场调一次:选模版(默认 `报纸`)或传一段自定义 `css`。返回里有:
 
@@ -111,7 +111,7 @@ uv run agent-speak --http \            # streamable-http 模式
 
 ## 写一份 UI
 
-先 `register_css` 选好皮肤(它会把 `html` 写法契约一起返回),再把一段纯 HTML 交给 `render_artifact`——优先用 `ass-*` 语义类(跟所选模版风格统一,无需自己堆样式):
+先 `set_session` 选好皮肤(它会把 `html` 写法契约一起返回),再把一段纯 HTML 交给 `render_artifact`——优先用 `ass-*` 语义类(跟所选模版风格统一,无需自己堆样式):
 
 ```html
 <div class="ass-panel">
@@ -126,7 +126,7 @@ uv run agent-speak --http \            # streamable-http 模式
 </div>
 ```
 
-预设类清单:布局 `ass-panel`/`ass-section`/`ass-row`/`ass-col`;文字 `ass-h1`/`ass-h2`/`ass-hint`/`ass-code`/`ass-kbd`/`ass-divider`;表单 `ass-field`/`ass-label`/`ass-input`/`ass-textarea`/`ass-select`/`ass-check-row`;按钮 `ass-btn` + `ass-btn-primary`/`ass-btn-ghost`/`ass-btn-danger`;提示 `ass-alert` + `ass-alert-info`/`ass-alert-warn`/`ass-alert-danger`。需要新类就去 `register_css(css=...)` 注册,别在 HTML 里写 `<style>`。
+预设类清单:布局 `ass-panel`/`ass-section`/`ass-row`/`ass-col`;文字 `ass-h1`/`ass-h2`/`ass-hint`/`ass-code`/`ass-kbd`/`ass-divider`;表单 `ass-field`/`ass-label`/`ass-input`/`ass-textarea`/`ass-select`/`ass-check-row`;按钮 `ass-btn` + `ass-btn-primary`/`ass-btn-ghost`/`ass-btn-danger`;提示 `ass-alert` + `ass-alert-info`/`ass-alert-warn`/`ass-alert-danger`。需要新类就去 `set_session(css=...)` 注册,别在 HTML 里写 `<style>`。
 
 用户提交后,反馈大概长这样:
 
@@ -150,7 +150,7 @@ uv run agent-speak --http \            # streamable-http 模式
 ### HTML 的几条契约
 
 - **纯 HTML**(通过 innerHTML 注入),不能写 React / JSX / 任何状态。
-- **样式优先用 `ass-*` 预设类**(模版已注入),其次 Tailwind 工具类(CDN 已预加载)。要自定义类去 `register_css(css=...)` 注册。`<style>` 块和外链样式表会在注入时被剥掉(否则会污染整页、冲掉前端壳子),不要在 HTML 里写。行内样式属性保留作为应急通道,但请优先用预设类。
+- **样式优先用 `ass-*` 预设类**(模版已注入),其次 Tailwind 工具类(CDN 已预加载)。要自定义类去 `set_session(css=...)` 注册。`<style>` 块和外链样式表会在注入时被剥掉(否则会污染整页、冲掉前端壳子),不要在 HTML 里写。行内样式属性保留作为应急通道,但请优先用预设类。
 - **不能有任何交互代码**:`<script>`、`<iframe>`、`<object>`、`<embed>`、`<link>`、`<meta>`、`<base>`、`<html>`、`<head>`、`<body>` 这些标签注入时会被剥;所有事件属性(`onclick`、`onchange` ……)也会被剥。所有交互都由前端壳子接管。
 - 每个有意义的元素都加一个稳定、描述清晰的 `data-ai-id="kebab-case-id"` 锚点,前端壳子通过它寻址、批注、回传。
 - 每个表单输入都配一个 `<label>`(包裹式或用 `for=` 都行),前端壳子会自动把人类可读的标签和值绑在一起。

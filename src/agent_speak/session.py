@@ -56,10 +56,10 @@ class SSEClient:
 class SessionState:
     sid: str
     artifact_html: str | None = None
-    # 当前激活的模版名(register_css 选定)。决定注入哪套 ass-* 预设。
+    # 当前激活的模版名(set_session 选定)。决定注入哪套 ass-* 预设。
     # 默认报纸;字面值需与 template.DEFAULT_TEMPLATE 一致。
     template: str = "报纸"
-    # 会话级自定义 CSS:AI 通过 register_css(css=...) 注册的命名类。
+    # 会话级自定义 CSS:AI 通过 set_session(css=...) 注册的命名类。
     # key 是选择器(".card"),value 是规则体("@apply bg-white shadow ..." 或裸 CSS)。
     # 仅内存,不落地。drop(sid) 时随会话一起消失。
     styles: dict[str, str] = field(default_factory=dict)

@@ -29,7 +29,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
 <script src="https://cdn.tailwindcss.com"></script>
 <style>
   /* ───── host 壳子(右下角工具栏 / 日记本 / 弹窗 / 遮罩)的主题 token ─────
-     这里是默认值(报纸风)。register_css 选模版时,#ass-chrome-vars 槽会注入
+     这里是默认值(报纸风)。set_session 选模版时,#ass-chrome-vars 槽会注入
      一段同名变量覆盖它(源码顺序更靠后 → 同特异性下生效),于是整个壳子的
      底色 / 文字 / 强调色 / 字体 / 圆角 / 阴影都跟着模版走。语义命名(surface /
      on-surface / accent…)让深浅主题自动正确:on-surface 既是文字也是描边,
@@ -821,14 +821,14 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
   }
   #submit-overlay .subtitle strong { color: var(--asc-accent); font-weight: 900; }
 </style>
-<!-- 壳子主题变量:register_css 选模版时注入对应的 :root{ --asc-* } 覆盖上面的默认值。
+<!-- 壳子主题变量:set_session 选模版时注入对应的 :root{ --asc-* } 覆盖上面的默认值。
      纯 CSS(非 tailwindcss),立即生效、无需等 Tailwind 编译,避免壳子闪一下报纸风。
      源码见本文件底部 CHROME_THEMES。空串时壳子用上面 :root 的报纸默认。 -->
 <style id="ass-chrome-vars">__CHROME_VARS__</style>
-<!-- 模版预设语义类(register_css 选哪套就注入哪套;所有模版共用同一组 ass-* 类名)。
+<!-- 模版预设语义类(set_session 选哪套就注入哪套;所有模版共用同一组 ass-* 类名)。
      默认报纸风格;切换模版时这里整段被替换。源码见本文件底部 TEMPLATES。 -->
 <style id="ass-preset-styles" type="text/tailwindcss">__PRESET_STYLES__</style>
-<!-- 会话级自定义 CSS:register_css(css=...) 注入的命名类规则。
+<!-- 会话级自定义 CSS:set_session(css=...) 注入的命名类规则。
      type="text/tailwindcss" 让 Tailwind play CDN 编译里面的 @apply。 -->
 <style id="ass-session-styles" type="text/tailwindcss">__INITIAL_STYLES__</style>
 </head>
@@ -1493,7 +1493,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     upsertStyleSlot('ass-preset-styles', d.preset_css);
     upsertStyleSlot('ass-session-styles', d.session_css);
   }
-  // register_css 单独调用(不跟 render)时热更新样式:只换皮肤,不动 artifact。
+  // set_session 单独调用(不跟 render)时热更新样式:只换皮肤,不动 artifact。
   es.addEventListener('styles', (e) => {
     try { applyStyles(JSON.parse(e.data)); }
     catch (err) { console.error('styles update failed', err); }
@@ -1557,7 +1557,7 @@ def render_html(
 
 # ───── 会话级自定义 CSS 的解析/拼装 ─────
 #
-# 约定:register_css(css="...") 收一段扁平 CSS——一个选择器一条规则、不嵌套、
+# 约定:set_session(css="...") 收一段扁平 CSS——一个选择器一条规则、不嵌套、
 # 不 @media。用最小正则解析成 {selector: body};不符合的规则被静默丢弃
 # (AI 看返回值的 styles 字段就能知道哪条生效了)。规则体推荐 @apply,也可裸 CSS。
 
@@ -1614,7 +1614,7 @@ def chrome_vars_css(name: str | None) -> str:
 # ───── 模版库 ─────
 #
 # 每套模版定义**同一组 ass-* 语义类**,只是视觉 token 不同——这样 AI 写的 HTML
-# 一个字都不用改,register_css 切换模版即换皮肤。选择器都带 `.artifact-root`
+# 一个字都不用改,set_session 切换模版即换皮肤。选择器都带 `.artifact-root`
 # 前缀(只作用于内容区,不碰 host 工具条);每套自带一条 body 底色让风格完整。
 # 类清单:布局 ass-panel/section/row/col;文字 ass-h1/h2/hint/code/kbd/divider;
 # 表单 ass-field/label/input/textarea/select/check-row;
@@ -1834,6 +1834,40 @@ TEMPLATES: dict[str, str] = {
     "柔和糖果": _CANDY_CSS,
     "杂志大刊": _MAGAZINE_CSS,
 }
+
+
+# ───── 模版排版引导 ─────
+#
+# set_session 选定模版时,随返回值带上这套模版的"怎么排才好看"引导——皮肤气质
+# (适合什么内容)+ 长材料的通用编排思路。让 AI 不只是套对类名,还知道版面节奏。
+# 刻意精简:这是运行时返回一次的内容,不是常驻 tool description。
+
+# 长材料(大纲 / 提案 / 审核稿)通用编排思路,拼在每套模版引导之后。
+_EDITORIAL_TIPS = (
+    "排长材料时:第一屏先点明这是什么(大纲 / 提案 / 方案);主体结构作视觉重心,"
+    "「目的」「总结」等辅助信息压低字号和权重;关键观点克制突出,别处处加粗;"
+    "确保窄屏能自然单列阅读。"
+)
+
+TEMPLATE_GUIDES: dict[str, str] = {
+    "报纸": "复古报纸 / 海报风(粗双线分隔、衬线大标题、暗红点缀)。最适合长材料审核"
+            "——大纲、提案、汇报稿。主标题可大胆放大,用 ass-divider 的粗线切分大章节,"
+            "营造版面感。",
+    "极简白": "现代 SaaS 风(纯白、细灰边、克制蓝)。最适合表单、设置、确认这类功能性界面。"
+              "靠留白和层级说话,别堆装饰;辅助说明交给 ass-hint;尽量一屏一个焦点。",
+    "暗夜霓虹": "深色霓虹风(暗底、青 / 品红发光)。适合技术、数据、代码、监控类内容。"
+                "冷色克制,靠 accent 点睛而非铺满;代码用 ass-code;信息密度可偏高,但务必分组。",
+    "柔和糖果": "圆角粉调、亲和风。适合轻量问卷、上手向导、面向非技术用户的交互。"
+                "语气友好,圆角与留白让人放松;一次别问太多;多用 ass-hint 解释字段。",
+    "杂志大刊": "大字号橙调编辑风(强对比、硬朗无圆角)。适合观点、特辑、重点推荐。"
+                "用大标题 + hero 制造冲击;栏目少而精;让一个核心主张占据视觉中心。",
+}
+
+
+def template_guide(name: str | None) -> str:
+    """取某套模版的排版引导(皮肤气质 + 通用编排思路);未知/空名回退默认模版。"""
+    base = TEMPLATE_GUIDES.get(name or "", TEMPLATE_GUIDES[DEFAULT_TEMPLATE])
+    return base + "\n" + _EDITORIAL_TIPS
 
 
 # ───── 壳子主题(host chrome themes)─────
