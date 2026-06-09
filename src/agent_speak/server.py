@@ -6,13 +6,13 @@
    不写 onClick/useState/onChange,不写 <script>、不写 <style>。
 2. 浏览器 host 负责"收回来"——批注、表单收集、提交,都在 host 一侧实现,
    不依赖 AI 代码的正确性。
-3. 固定两步流程,消除"一次同步一次异步"的歧义:
-   - register_css:会话第一步。选皮肤(模版/自定义 CSS)+ 拿 URL 交给用户打开
-     (预热 SSE 连接)+ 把皮肤源码回传给 AI。
-   - render_artifact:把 HTML 推到已打开的页面,**同步阻塞**等用户提交,
-     最多 max_wait_seconds(默认 180)。提交→返回 {feedback};超时→{pending}。
-     一次工具调用同时完成"推 + 收",省掉一次大模型往返。
-   - wait_user_feedback:render 超时后续等(wait),或异步查询(poll)。
+3. 固定流程,消除"一次同步一次异步"的歧义:
+   - register_css:**会话第一步(必做)**。选皮肤(模版/自定义 CSS)+ 拿 URL 交给
+     用户打开(预热 SSE 连接)+ 把皮肤源码与 render 的 html 写法契约回传给 AI。
+   - render_artifact:把 HTML 推到已打开的页面,**同步阻塞**等用户提交,最多
+     max_wait_seconds(默认 180)。一次调用同时完成"推 + 收",省掉一次大模型往返。
+     提交→{feedback};超时或页面没连上→{pending}(页面没连上时立即返回、不空等)。
+   - wait_user_feedback:render 返回 {pending} 后,阻塞续等用户提交。
 """
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ import datetime
 import logging
 import webbrowser
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any
 
 from fastmcp import Context, FastMCP
 from fastmcp.exceptions import ToolError
@@ -29,6 +29,7 @@ from fastmcp.exceptions import ToolError
 from .session import CONFIG, SESSIONS, get_or_create, stdio_sid
 from .template import (
     TEMPLATES,
+    chrome_vars_css,
     compose_styles_css,
     parse_css_rules,
     template_css,
@@ -64,6 +65,7 @@ async def _push_styles(state) -> None:
     await state.sse_writer.send("styles", {
         "preset_css": template_css(state.template),
         "session_css": compose_styles_css(state.styles),
+        "chrome_css": chrome_vars_css(state.template),
     })
 
 
@@ -75,15 +77,18 @@ def _finalize(state) -> dict[str, Any]:
     return {"feedback": state.submitted_data}
 
 
-REGISTER_DOC = """**会话第一步(必做)**:选定页面皮肤,并拿到要交给用户打开的 URL。
+REGISTER_DOC = """**渲染html第一步(必做)**:选定页面皮肤,拿到要交给用户打开的 URL,
+并取得 render_artifact 的 html 写法契约。
 
-做三件事:
+做四件事:
   1. 选皮肤——`template` 选一套内置模版(**默认且推荐 "报纸"**),
      和/或 `css` 注册你自己的命名类。
   2. 返回 `url`:**把它交给用户,让他现在就打开**——页面会先显示"等待内容中",
      这一步把 SSE 连接预热好,之后每次 render_artifact 都能直接同步拿反馈。
   3. 返回 `preset_css`:所选模版的**完整 CSS 源码**(含 @apply 实际内容),
      让你写自定义类时配色/间距能跟模版对齐。
+  4. 返回 `render_html_contract`:render_artifact 的 `html` 参数到底怎么写
+     (语义类清单、data-ai-id 锚点、提交规则)——**render 之前务必照它写**。
 
 参数:
   • template:模版名,二选一地传。可选值见返回的 `available_templates`,
@@ -99,32 +104,13 @@ REGISTER_DOC = """**会话第一步(必做)**:选定页面皮肤,并拿到要交
 已打开,样式会**热更新**(不重渲染 artifact)。
 
 所有模版**共用同一组 ass-* 语义类**,所以换模版时你的 HTML 一个字都不用改。
-返回 {sid, url, template, available_templates, preset_css, custom_css, connected}。
 """
 
 
-RENDER_DOC = """把一份 UI artifact 推给用户,并**同步阻塞**等他提交反馈。
-
-前置:应先调过 register_css(它把 URL 交给用户、预热了连接)。本工具把 HTML 通过
-SSE 推到那个已打开的页面,然后阻塞最多 `max_wait_seconds` 秒(默认 180,上限 180)
-等用户填表单 / 写批注 / 点「发送」。
-
-按返回值判断下一步:
-  • {feedback: {...}, sid, url, connected}
-        用户已提交。直接用 feedback。这是一次工具调用同时完成了"推 + 收"。
-  • {status: "pending", sid, url, connected: true}
-        推送成功、页面在线,但这段时间内用户还没提交。**不是失败,别重推**。
-        下一步调 wait_user_feedback 继续等(mode="wait")或交还控制权(mode="poll")。
-  • {status: "pending", sid, url, connected: false}
-        页面还没连上(用户可能没打开 register_css 给的 URL)。提醒用户打开那个
-        URL;artifact 已缓存,他一打开就会看到。之后用 wait_user_feedback 取反馈。
-
-参数:
-  • html:纯 HTML 字符串(见下方契约)。
-  • max_wait_seconds:同步阻塞上限,默认 180,钳制到 [1, 180]。
-    异步场景(用户说稍后再看)可传较小值快速返回 pending,再用 poll。
-
-`html` 契约:
+# render_artifact 的 html 写法契约。**故意不放进 RENDER_DOC**(那是常驻 tool
+# description,每轮都吃 token),而是由 register_css 在运行时通过 render_html_contract
+# 字段返回一次——AI 在会话第一步就拿到,render 时照着写即可。
+HTML_CONTRACT = """`html` 写法契约:
 - 纯 HTML(通过 innerHTML 注入)。**禁止** React/JSX/useState。
 - **默认就用 ass-* 语义类**(register_css 选的模版已注入,跟 host 风格统一):
     布局:`ass-panel`(卡片) `ass-section` `ass-row`(横排) `ass-col`(竖排)
@@ -157,41 +143,17 @@ SSE 推到那个已打开的页面,然后阻塞最多 `max_wait_seconds` 秒(默
 """
 
 
-WAIT_DOC = """取回用户对 render_artifact 那份 artifact 的反馈。通常在 render_artifact
-返回 {status:"pending"} 之后调——也就是同步阻塞等满了还没等到提交时的续等手段。
+RENDER_DOC = """把一份 UI artifact 推给用户,并**同步阻塞**等他提交反馈。
 
-两种模式:
-  mode="poll"(默认——异步/审批流,安全)
-      立即返回,不等待。已提交则返回 {feedback};否则返回 {pending: true, url}。
-      **不要自动重试**——等用户主动来问("回了吗?")再调下一次。
+前置:先调过 register_css 进行预热
 
-  mode="wait"(交互流——用户正盯着屏幕)
-      阻塞最多 `max_wait_seconds`(钳制在 [1, 180])等提交。提交则返回 {feedback}。
-      **超时会抛 ToolError**(不是返回 {pending}),强制你浮上来做决定:再调一次
-      mode="wait" 继续等,或降级 mode="poll"。
-
-成功返回(二选一):
-  {"feedback": {...}}                — 用户点了发送;payload 见下。
-  {"pending": true, "url": "..."}    — poll 模式,还没提交。
-
-反馈 payload 结构:
-  {
-    "user_comments": [
-      {"target_id": "<data-ai-id>",
-       "element_html_hint": "<截断后的 outerHTML,约 300 字符>",
-       "instruction": "<用户写的内容>"}, ...
-    ],
-    "user_form_inputs": [
-      {"ai_id": "<data-ai-id 或 null>",
-       "label": "<推断出的标签文本或 null>",
-       "name": "<input 的 name 属性或 null>",
-       "type": "text|textarea|select|checkbox|radio|...",
-       "value": "<文本/选项是字符串,复选/单选是布尔>"}, ...
-    ]
-  }
-
-host 渲染出错(比如 AI 写的 HTML 无法注入)会抛 ToolError。
+参数:
+  • html:纯 HTML 字符串,**写法见 register_css 返回的 `render_html_contract`**。
+  • max_wait_seconds:等待用户回复的同步阻塞时间上限,默认 180。
 """
+
+
+WAIT_DOC = """render_artifact 获取结果，可设置最多等待时间"""
 
 
 @mcp.tool(description=REGISTER_DOC)
@@ -252,6 +214,7 @@ async def register_css(
         "custom_css": compose_styles_css(state.styles),
         "added_or_updated": sorted(added),
         "connected": connected,
+        "render_html_contract": HTML_CONTRACT,
         "next_step": next_step,
     }
 
@@ -274,34 +237,41 @@ async def render_artifact(
     _archive_artifact(sid, html)  # 归档保留原文,可回放 AI 原始输入
 
     connected = state.sse_writer is not None
-    if connected:
-        await state.sse_writer.send("artifact", {
-            "html": html,
-            "preset_css": template_css(state.template),
-            "session_css": compose_styles_css(state.styles),
-        })
+    if not connected:
+        # 页面还没连上,堵塞等待毫无意义(用户根本看不到 artifact、不可能提交)。
+        # artifact 已缓存,用户之后打开/重连 URL 时 ui_events 会自动补推,所以这里
+        # 不等待,立即返回 pending,让 AI 去提醒用户打开 URL。
+        return {
+            "sid": sid,
+            "url": _url(sid),
+            "connected": False,
+            "status": "pending",
+            "next_step": (
+                f"artifact 已缓存,但页面还没连上——用户可能还没打开 URL。提醒他打开:"
+                f"\n    {_url(sid)}\n打开后他就会看到内容;之后用 wait_user_feedback 取反馈。"
+            ),
+        }
+
+    await state.sse_writer.send("artifact", {
+        "html": html,
+        "preset_css": template_css(state.template),
+        "session_css": compose_styles_css(state.styles),
+        "chrome_css": chrome_vars_css(state.template),
+    })
 
     wait = max(1, min(int(max_wait_seconds), 180))
     try:
         await asyncio.wait_for(state.submit_event.wait(), timeout=wait)
     except asyncio.TimeoutError:
-        if connected:
-            next_step = (
-                "render 成功、页面在线,但这段时间用户还没提交。URL 没变、页面没问题,"
-                "**不要重推**。继续等就调 wait_user_feedback(mode='wait');把控制权"
-                "交还对话就调 mode='poll'。"
-            )
-        else:
-            next_step = (
-                f"artifact 已缓存,但页面还没连上——用户可能还没打开 URL。提醒他打开:"
-                f"\n    {_url(sid)}\n打开后他就会看到内容;之后用 wait_user_feedback 取反馈。"
-            )
         return {
             "sid": sid,
             "url": _url(sid),
-            "connected": connected,
+            "connected": True,
             "status": "pending",
-            "next_step": next_step,
+            "next_step": (
+                "render 成功、页面在线,但这段时间用户还没提交。URL 没变、页面没问题,"
+                "**不要重推**。继续等就再调 wait_user_feedback。"
+            ),
         }
 
     return {
@@ -315,7 +285,6 @@ async def render_artifact(
 @mcp.tool(description=WAIT_DOC)
 async def wait_user_feedback(
     ctx: Context,
-    mode: Literal["poll", "wait"] = "poll",
     max_wait_seconds: int = 60,
 ) -> dict[str, Any]:
     sid = ctx.session_id or stdio_sid()
@@ -328,20 +297,15 @@ async def wait_user_feedback(
     if state.submit_event.is_set():
         return _finalize(state)
 
-    if mode == "poll":
-        return {"pending": True, "url": _url(sid)}
-
-    # mode == "wait": bounded by 3 minutes; raise on timeout
+    # 始终阻塞等用户提交,上限 3 分钟;超时抛 ToolError(不是故障,可再调一次接着等)。
     wait = max(1, min(int(max_wait_seconds), 180))
     try:
         await asyncio.wait_for(state.submit_event.wait(), timeout=wait)
     except asyncio.TimeoutError:
         raise ToolError(
             f"用户暂时还没回复——这 {wait} 秒里他没提交。这是正常的等待超时,"
-            f"**不是渲染失败或服务端故障**,artifact 还在他页面上,**不要重推**。\n\n"
-            f"接下来由你决定:\n"
-            f"  • 继续等:再调一次 wait_user_feedback(mode='wait', max_wait_seconds=...)。\n"
-            f"  • 把控制权交还对话:切到 mode='poll',等用户之后主动来问。\n"
+            f"**不是渲染失败或服务端故障**,artifact 还在他页面上,**不要重推**。"
+            f"想继续等就再调一次 wait_user_feedback。"
             f"(URL 仅供参考,不需要重发:{_url(sid)})"
         )
     return _finalize(state)

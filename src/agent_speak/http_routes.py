@@ -9,7 +9,7 @@ from starlette.responses import HTMLResponse, JSONResponse, Response, StreamingR
 from starlette.routing import Route
 
 from .session import SESSIONS, SSEClient, get_or_create
-from .template import compose_styles_css, render_html, template_css
+from .template import chrome_vars_css, compose_styles_css, render_html, template_css
 
 
 logger = logging.getLogger("agent_speak.http")
@@ -20,9 +20,11 @@ async def ui_root(request: Request) -> HTMLResponse:
     # 把模版预设 + 会话自定义样式内联到初始 HTML(用户刷新/新 tab 接管时),
     # 避免要等下一次 SSE 事件才生效。会话不存在时用默认模版。
     state = SESSIONS.get(sid)
-    preset_css = template_css(state.template if state else None)
+    name = state.template if state else None
+    preset_css = template_css(name)
     session_css = compose_styles_css(state.styles) if state else ""
-    return HTMLResponse(render_html(sid, preset_css, session_css))
+    chrome_css = chrome_vars_css(name)
+    return HTMLResponse(render_html(sid, preset_css, session_css, chrome_css))
 
 
 async def ui_events(request: Request) -> StreamingResponse:
@@ -45,11 +47,13 @@ async def ui_events(request: Request) -> StreamingResponse:
             "html": state.artifact_html,
             "preset_css": template_css(state.template),
             "session_css": compose_styles_css(state.styles),
+            "chrome_css": chrome_vars_css(state.template),
         })
     else:
         await writer.send("styles", {
             "preset_css": template_css(state.template),
             "session_css": compose_styles_css(state.styles),
+            "chrome_css": chrome_vars_css(state.template),
         })
 
     async def gen():

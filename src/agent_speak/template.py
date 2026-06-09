@@ -28,14 +28,35 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
 <title>agent-speak</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <style>
+  /* ───── host 壳子(右下角工具栏 / 日记本 / 弹窗 / 遮罩)的主题 token ─────
+     这里是默认值(报纸风)。register_css 选模版时,#ass-chrome-vars 槽会注入
+     一段同名变量覆盖它(源码顺序更靠后 → 同特异性下生效),于是整个壳子的
+     底色 / 文字 / 强调色 / 字体 / 圆角 / 阴影都跟着模版走。语义命名(surface /
+     on-surface / accent…)让深浅主题自动正确:on-surface 既是文字也是描边,
+     反白小块用 surface 做文字色,故暗色模版下也读得清。派生的浅淡叠色用
+     color-mix 从这几个基色推导,不必逐个再开 token。 */
+  :root {
+    --asc-page:        #e9e0ca;   /* 页面整体底色(container 外) */
+    --asc-surface:     #f4ecd8;   /* 壳子面板底色(工具栏 / 日记本 / 卡片) */
+    --asc-on-surface:  #1a1a1a;   /* 面板上的文字 + 描边(主墨色) */
+    --asc-accent:      #8b1e1e;   /* 强调色(序号 / 徽章 / 焦点环) */
+    --asc-accent-2:    #6b1414;   /* 强调色更深一档(hover) */
+    --asc-muted:       #6b6b6b;   /* 次要灰字 */
+    --asc-field:       #fffaf0;   /* 输入框底色 */
+    --asc-send:        #2d7148;   /* 发送按钮(全局唯一的"去"动作色) */
+    --asc-send-2:      #1f5634;   /* 发送按钮 hover */
+    --asc-font:        Georgia, "Songti SC", "Source Han Serif SC", "Noto Serif CJK SC", serif;
+    --asc-radius:      0px;       /* 壳子圆角 */
+    --asc-shadow:      4px 4px 0 var(--asc-on-surface);   /* 工具栏 / 日记本投影 */
+    --asc-shadow-lg:   8px 8px 0 var(--asc-on-surface);   /* 弹窗投影 */
+  }
+
   html, body { height: 100%; margin: 0; }
-  body { background: #e9e0ca; color: #1a1a1a; font-family: ui-sans-serif, system-ui, -apple-system, sans-serif; }
+  body { background: var(--asc-page); color: var(--asc-on-surface); font-family: ui-sans-serif, system-ui, -apple-system, sans-serif; }
 
   #container {
     min-height: 100vh;
-    max-width: 880px;
-    margin: 0 auto;
-    padding: 32px 20px;
+    padding: 32px;
     box-sizing: border-box;
   }
   #container[data-frozen="true"] { opacity: 0.5; pointer-events: none; }
@@ -47,14 +68,14 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
   /* Hover highlight overlay */
   #highlight {
     position: fixed; pointer-events: none; z-index: 8000;
-    border: 2px solid #2563eb; border-radius: 4px;
-    background: rgba(37,99,235,0.08);
+    border: 2px solid var(--asc-accent); border-radius: 4px;
+    background: color-mix(in srgb, var(--asc-accent) 8%, transparent);
     transition: top 80ms ease-out, left 80ms ease-out, width 80ms ease-out, height 80ms ease-out;
     display: none;
   }
   #highlight .label {
     position: absolute; top: -24px; left: -2px;
-    background: #2563eb; color: white;
+    background: var(--asc-accent); color: white;
     font-size: 11px; padding: 3px 8px;
     border-radius: 4px 4px 0 0;
     white-space: nowrap; font-weight: 500;
@@ -67,9 +88,9 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
 
   /* Annotated nodes inside container — dark-red ink outline */
   #container [data-as-annotated="true"] {
-    outline: 2px solid #8b1e1e;
+    outline: 2px solid var(--asc-accent);
     outline-offset: 1px;
-    border-radius: 0;
+    border-radius: var(--asc-radius);
   }
 
   /* Floating number badges INSIDE the top-right corner of annotated elements */
@@ -81,14 +102,14 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     position: absolute;
     width: 22px; height: 22px;
     border-radius: 50%;
-    background: #8b1e1e;
-    color: #f4ecd8;
-    font-family: Georgia, serif;
+    background: var(--asc-accent);
+    color: var(--asc-surface);
+    font-family: var(--asc-font);
     font-size: 11px; font-weight: 900;
     font-style: italic;
     display: flex; align-items: center; justify-content: center;
-    border: 2px solid #f4ecd8;
-    box-shadow: 0 2px 6px rgba(26,26,26,0.30);
+    border: 2px solid var(--asc-surface);
+    box-shadow: 0 2px 6px color-mix(in srgb, var(--asc-on-surface) 30%, transparent);
     transform: translateX(-100%);
     pointer-events: auto;
     cursor: pointer;
@@ -96,11 +117,11 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
   }
   .anno-badge:hover {
     transform: translateX(-100%) scale(1.18);
-    background: #6b1414;
+    background: var(--asc-accent-2);
   }
   .anno-badge.active {
-    background: #1a1a1a; color: #f4ecd8;
-    box-shadow: 0 0 0 3px rgba(26,26,26,0.30), 0 2px 6px rgba(26,26,26,0.30);
+    background: var(--asc-on-surface); color: var(--asc-surface);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--asc-on-surface) 30%, transparent), 0 2px 6px color-mix(in srgb, var(--asc-on-surface) 30%, transparent);
   }
 
   /* ───── bottom-right notebook (page + always-on toolbar) ───── */
@@ -118,15 +139,15 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
   /* The page itself — only visible while inspect mode is on */
   .nb-page {
     width: 320px;
-    background: #f4ecd8;
-    border: 2px solid #1a1a1a;
-    border-radius: 0;
-    box-shadow: 4px 4px 0 #1a1a1a;
+    background: var(--asc-surface);
+    border: 2px solid var(--asc-on-surface);
+    border-radius: var(--asc-radius);
+    box-shadow: var(--asc-shadow);
     overflow: hidden;
     display: flex; flex-direction: column;
     max-height: 60vh;
-    color: #1a1a1a;
-    font-family: Georgia, "Songti SC", "Source Han Serif SC", "Noto Serif CJK SC", serif;
+    color: var(--asc-on-surface);
+    font-family: var(--asc-font);
     transform-origin: bottom right;
     transition: max-height 280ms ease, opacity 220ms ease,
                 transform 220ms ease;
@@ -144,8 +165,8 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     display: flex; align-items: baseline; justify-content: space-between;
     padding: 12px 16px 8px;
     background: transparent;
-    border-bottom: 3px double #1a1a1a;
-    color: #1a1a1a;
+    border-bottom: 3px double var(--asc-on-surface);
+    color: var(--asc-on-surface);
     user-select: none;
   }
   .nb-title {
@@ -163,7 +184,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     font-style: italic;
     font-weight: 700;
     font-size: 14px;
-    color: #8b1e1e;
+    color: var(--asc-accent);
     background: transparent;
     padding: 0;
     min-width: 0;
@@ -180,17 +201,17 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
   /* Edit area inside the notebook body */
   #edit-area {
     padding: 12px 16px;
-    border-bottom: 2px solid #1a1a1a;
-    background: rgba(26, 26, 26, 0.04);
+    border-bottom: 2px solid var(--asc-on-surface);
+    background: color-mix(in srgb, var(--asc-on-surface) 4%, transparent);
   }
   #edit-area.hidden { display: none; }
   #edit-area .target-id {
     font-family: ui-monospace, SFMono-Regular, monospace;
     font-size: 10px;
-    color: #f4ecd8;
-    background: #1a1a1a;
+    color: var(--asc-surface);
+    background: var(--asc-on-surface);
     padding: 3px 8px;
-    border-radius: 0;
+    border-radius: var(--asc-radius);
     letter-spacing: 0.04em;
     margin-bottom: 8px; display: inline-block;
     max-width: 100%; overflow: hidden;
@@ -198,24 +219,24 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
   }
   #edit-area textarea {
     width: 100%; height: 76px; box-sizing: border-box;
-    border: 1px solid #1a1a1a; border-radius: 0;
+    border: 1px solid var(--asc-on-surface); border-radius: var(--asc-radius);
     padding: 8px;
     font-size: 13px; resize: vertical;
-    font-family: inherit; color: #1a1a1a;
-    background: #fffaf0;
+    font-family: inherit; color: var(--asc-on-surface);
+    background: var(--asc-field);
   }
   #edit-area textarea:focus {
     outline: 0;
-    border-color: #8b1e1e;
-    box-shadow: inset 0 0 0 1px #8b1e1e;
+    border-color: var(--asc-accent);
+    box-shadow: inset 0 0 0 1px var(--asc-accent);
   }
   #edit-area .row {
     display: flex; justify-content: space-between; align-items: center;
     margin-top: 8px; gap: 8px;
   }
   #edit-area button {
-    border: 1px solid #1a1a1a;
-    border-radius: 0;
+    border: 1px solid var(--asc-on-surface);
+    border-radius: var(--asc-radius);
     padding: 5px 12px;
     font-family: inherit;
     font-size: 11px;
@@ -224,51 +245,51 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     letter-spacing: 0.08em;
     cursor: pointer;
     background: transparent;
-    color: #1a1a1a;
+    color: var(--asc-on-surface);
   }
   #edit-area .delete {
-    border-color: #8b1e1e; color: #8b1e1e;
+    border-color: var(--asc-accent); color: var(--asc-accent);
   }
-  #edit-area .delete:hover { background: #8b1e1e; color: #f4ecd8; }
+  #edit-area .delete:hover { background: var(--asc-accent); color: var(--asc-surface); }
   #edit-area .right-btns { display: flex; gap: 6px; }
-  #edit-area .cancel:hover { background: rgba(26,26,26,0.08); }
-  #edit-area .save { background: #1a1a1a; color: #f4ecd8; }
-  #edit-area .save:hover { background: #8b1e1e; border-color: #8b1e1e; }
+  #edit-area .cancel:hover { background: color-mix(in srgb, var(--asc-on-surface) 8%, transparent); }
+  #edit-area .save { background: var(--asc-on-surface); color: var(--asc-surface); }
+  #edit-area .save:hover { background: var(--asc-accent); border-color: var(--asc-accent); }
 
   /* Notebook entries — newspaper article fragments */
   #anno-list .empty {
     padding: 26px 18px;
     text-align: center;
-    color: #6b6b6b; font-size: 13px; line-height: 1.7;
+    color: var(--asc-muted); font-size: 13px; line-height: 1.7;
     font-style: italic;
   }
   #anno-list .item {
     display: flex; gap: 12px;
     padding: 10px 16px;
     cursor: pointer;
-    border-bottom: 1px solid rgba(26, 26, 26, 0.18);
+    border-bottom: 1px solid color-mix(in srgb, var(--asc-on-surface) 18%, transparent);
     transition: background 100ms;
   }
   #anno-list .item:last-child { border-bottom: 0; }
-  #anno-list .item:hover { background: rgba(26, 26, 26, 0.05); }
-  #anno-list .item.editing { background: rgba(139, 30, 30, 0.10); }
+  #anno-list .item:hover { background: color-mix(in srgb, var(--asc-on-surface) 5%, transparent); }
+  #anno-list .item.editing { background: color-mix(in srgb, var(--asc-accent) 10%, transparent); }
   #anno-list .num {
     flex-shrink: 0;
     font-family: inherit;
     font-weight: 900;
     font-size: 22px;
     line-height: 1;
-    color: #8b1e1e;
+    color: var(--asc-accent);
     min-width: 22px;
     padding-top: 2px;
     font-style: italic;
   }
-  #anno-list .item.editing .num { color: #1a1a1a; }
+  #anno-list .item.editing .num { color: var(--asc-on-surface); }
   #anno-list .item-body { flex: 1; min-width: 0; }
   #anno-list .aid {
     font-family: ui-monospace, monospace;
     font-size: 10px;
-    color: #6b6b6b;
+    color: var(--asc-muted);
     text-transform: uppercase;
     letter-spacing: 0.08em;
     margin-bottom: 2px;
@@ -277,7 +298,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
   #anno-list .text {
     font-family: inherit;
     font-size: 14px;
-    color: #1a1a1a;
+    color: var(--asc-on-surface);
     line-height: 1.5;
     overflow: hidden; text-overflow: ellipsis;
     display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
@@ -286,83 +307,83 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
   /* Newspaper-stamp toolbar: solid block with hard offset shadow */
   .nb-toolbar {
     display: inline-flex; align-items: stretch;
-    background: #f4ecd8;
-    border: 2px solid #1a1a1a;
-    border-radius: 0;
-    box-shadow: 4px 4px 0 #1a1a1a;
-    font-family: Georgia, "Songti SC", "Source Han Serif SC", "Noto Serif CJK SC", serif;
+    background: var(--asc-surface);
+    border: 2px solid var(--asc-on-surface);
+    border-radius: var(--asc-radius);
+    box-shadow: var(--asc-shadow);
+    font-family: var(--asc-font);
   }
-  .nb-toolbar > * + * { border-left: 1px solid #1a1a1a; }
+  .nb-toolbar > * + * { border-left: 1px solid var(--asc-on-surface); }
   .nb-toolbar button {
     background: transparent;
     border: 0;
-    border-radius: 0;
+    border-radius: var(--asc-radius);
     padding: 10px 17px;
     font-family: inherit;
     font-size: 12px;
     font-weight: 800;
     text-transform: uppercase;
     letter-spacing: 0.10em;
-    color: #1a1a1a;
+    color: var(--asc-on-surface);
     cursor: pointer;
     display: inline-flex; align-items: center; gap: 7px;
     line-height: 1;
   }
-  .nb-toolbar button:hover { background: rgba(26, 26, 26, 0.08); }
+  .nb-toolbar button:hover { background: color-mix(in srgb, var(--asc-on-surface) 8%, transparent); }
   .nb-toolbar button:focus { outline: none; }
   .nb-toolbar button:focus-visible {
-    outline: 2px solid #8b1e1e;
+    outline: 2px solid var(--asc-accent);
     outline-offset: -2px;
   }
 
   #mode-btn .indicator {
     width: 8px; height: 8px; border-radius: 50%;
-    background: #6b6b6b; flex-shrink: 0;
+    background: var(--asc-muted); flex-shrink: 0;
   }
   #mode-btn.on {
-    background: #1a1a1a; color: #f4ecd8;
+    background: var(--asc-on-surface); color: var(--asc-surface);
   }
-  #mode-btn.on:hover { background: #2a2a2a; }
+  #mode-btn.on:hover { background: color-mix(in srgb, var(--asc-on-surface), #ffffff 14%); }
   #mode-btn.on .indicator {
-    background: #f4ecd8;
+    background: var(--asc-surface);
     animation: pulse-paper 1.6s infinite;
   }
   @keyframes pulse-paper {
-    0%, 100% { box-shadow: 0 0 0 0 rgba(244, 236, 216, 0.7); }
-    50%      { box-shadow: 0 0 0 5px rgba(244, 236, 216, 0); }
+    0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--asc-surface) 70%, transparent); }
+    50%      { box-shadow: 0 0 0 5px transparent; }
   }
 
   /* SEND — the only green in the whole UI, always visible primary action */
   #send-btn {
-    background: #2d7148;
-    color: #f4ecd8;
+    background: var(--asc-send);
+    color: var(--asc-surface);
   }
-  #send-btn:not(:disabled):hover { background: #1f5634; }
+  #send-btn:not(:disabled):hover { background: var(--asc-send-2); }
   #send-btn:disabled {
-    background: rgba(26, 26, 26, 0.12);
-    color: rgba(26, 26, 26, 0.32);
+    background: color-mix(in srgb, var(--asc-on-surface) 12%, transparent);
+    color: color-mix(in srgb, var(--asc-on-surface) 32%, transparent);
     cursor: not-allowed;
   }
-  #send-btn:disabled:hover { background: rgba(26, 26, 26, 0.12); }
+  #send-btn:disabled:hover { background: color-mix(in srgb, var(--asc-on-surface) 12%, transparent); }
 
   /* Small help/question-mark — same toolbar family */
   #help-btn {
     padding: 0 12px;
-    font-family: Georgia, serif;
+    font-family: var(--asc-font);
     font-size: 15px;
     font-weight: 900;
     font-style: italic;
-    color: #6b6b6b;
+    color: var(--asc-muted);
     background: transparent;
     border: 0;
-    border-radius: 0;
+    border-radius: var(--asc-radius);
     line-height: 1;
     cursor: pointer;
   }
-  #help-btn:hover { background: rgba(26,26,26,0.08); color: #1a1a1a; }
+  #help-btn:hover { background: color-mix(in srgb, var(--asc-on-surface) 8%, transparent); color: var(--asc-on-surface); }
   #help-btn:focus { outline: none; }
   #help-btn:focus-visible {
-    outline: 2px solid #8b1e1e;
+    outline: 2px solid var(--asc-accent);
     outline-offset: -2px;
   }
 
@@ -370,37 +391,37 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
   #tutorial-modal {
     position: fixed; inset: 0; z-index: 9700;
     display: flex; align-items: center; justify-content: center;
-    background: rgba(26, 26, 26, 0.55);
+    background: color-mix(in srgb, var(--asc-on-surface) 55%, transparent);
     backdrop-filter: blur(2px);
     -webkit-backdrop-filter: blur(2px);
     padding: 24px;
   }
   #tutorial-modal.hidden { display: none; }
   #tutorial-modal .t-card {
-    background: #f4ecd8;
+    background: var(--asc-surface);
     width: min(640px, 100%);
     max-height: 88vh;
-    border: 3px solid #1a1a1a;
-    border-radius: 0;
-    box-shadow: 8px 8px 0 #1a1a1a;
+    border: 3px solid var(--asc-on-surface);
+    border-radius: var(--asc-radius);
+    box-shadow: var(--asc-shadow-lg);
     display: flex; flex-direction: column;
     overflow: hidden;
-    color: #1a1a1a;
-    font-family: Georgia, "Songti SC", "Source Han Serif SC", "Noto Serif CJK SC", serif;
+    color: var(--asc-on-surface);
+    font-family: var(--asc-font);
   }
 
   /* Compact head */
   #tutorial-modal .t-head {
     display: flex; align-items: flex-start; justify-content: space-between;
     padding: 16px 24px 12px;
-    border-bottom: 4px double #1a1a1a;
+    border-bottom: 4px double var(--asc-on-surface);
   }
   #tutorial-modal .t-kicker {
     display: block;
     font-size: 10px; font-weight: 700;
     letter-spacing: 0.28em;
     text-transform: uppercase;
-    color: #8b1e1e;
+    color: var(--asc-accent);
     margin-bottom: 4px;
   }
   #tutorial-modal .t-title {
@@ -413,55 +434,55 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
   }
   #tutorial-modal .t-close {
     border: 0; background: transparent; cursor: pointer;
-    font-family: Georgia, serif;
-    font-size: 26px; color: #1a1a1a; line-height: 1;
+    font-family: var(--asc-font);
+    font-size: 26px; color: var(--asc-on-surface); line-height: 1;
     padding: 0 4px;
   }
-  #tutorial-modal .t-close:hover { color: #8b1e1e; }
+  #tutorial-modal .t-close:hover { color: var(--asc-accent); }
 
   /* Tab strip — 3 equal cells, active = knockout */
   #tutorial-modal .t-tabs {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    border-bottom: 3px solid #1a1a1a;
-    background: #f4ecd8;
+    border-bottom: 3px solid var(--asc-on-surface);
+    background: var(--asc-surface);
   }
   #tutorial-modal .t-tab {
     background: transparent;
     border: 0;
-    border-right: 1px solid rgba(26,26,26,0.2);
+    border-right: 1px solid color-mix(in srgb, var(--asc-on-surface) 20%, transparent);
     padding: 14px 8px 12px;
     cursor: pointer;
     display: flex; flex-direction: column; align-items: center; gap: 4px;
     font-family: inherit;
-    color: #1a1a1a;
+    color: var(--asc-on-surface);
     transition: background 120ms;
   }
   #tutorial-modal .t-tab:last-child { border-right: 0; }
-  #tutorial-modal .t-tab:hover { background: rgba(26,26,26,0.05); }
+  #tutorial-modal .t-tab:hover { background: color-mix(in srgb, var(--asc-on-surface) 5%, transparent); }
   #tutorial-modal .t-tab-num {
-    font-family: Georgia, serif;
+    font-family: var(--asc-font);
     font-style: italic;
     font-weight: 900;
     font-size: 26px;
     line-height: 1;
-    color: #8b1e1e;
+    color: var(--asc-accent);
   }
   #tutorial-modal .t-tab-label {
     font-weight: 800;
     font-size: 11px;
     text-transform: uppercase;
     letter-spacing: 0.15em;
-    color: #1a1a1a;
+    color: var(--asc-on-surface);
   }
-  #tutorial-modal .t-tab.active { background: #1a1a1a; }
+  #tutorial-modal .t-tab.active { background: var(--asc-on-surface); }
   #tutorial-modal .t-tab.active .t-tab-num,
   #tutorial-modal .t-tab.active .t-tab-label {
-    color: #f4ecd8;
+    color: var(--asc-surface);
   }
   #tutorial-modal .t-tab:focus { outline: none; }
   #tutorial-modal .t-tab:focus-visible {
-    outline: 2px solid #8b1e1e; outline-offset: -2px;
+    outline: 2px solid var(--asc-accent); outline-offset: -2px;
   }
 
   /* Body holds 3 panes, only .active visible */
@@ -484,9 +505,9 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
   }
   #tutorial-modal .t-numblock {
     width: 80px; height: 80px;
-    background: #1a1a1a;
-    color: #f4ecd8;
-    font-family: Georgia, serif;
+    background: var(--asc-on-surface);
+    color: var(--asc-surface);
+    font-family: var(--asc-font);
     font-style: italic;
     font-weight: 900;
     font-size: 44px;
@@ -499,7 +520,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     font-size: 10px; font-weight: 700;
     letter-spacing: 0.25em;
     text-transform: uppercase;
-    color: #8b1e1e;
+    color: var(--asc-accent);
     margin-bottom: 4px;
   }
   #tutorial-modal .t-pane-content h4 {
@@ -518,11 +539,11 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     line-height: 1.8;
   }
   #tutorial-modal .t-pane p.highlight {
-    border-left: 4px solid #8b1e1e;
+    border-left: 4px solid var(--asc-accent);
     padding: 4px 0 4px 14px;
     margin: 16px 0;
     font-style: italic;
-    color: #1a1a1a;
+    color: var(--asc-on-surface);
   }
   #tutorial-modal .t-pane p.huge {
     font-size: 32px;
@@ -530,22 +551,22 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     line-height: 1.2;
     letter-spacing: 0.02em;
     margin: 18px 0;
-    background: #1a1a1a;
-    color: #f4ecd8;
+    background: var(--asc-on-surface);
+    color: var(--asc-surface);
     padding: 14px 18px;
     display: inline-block;
   }
   #tutorial-modal .t-pane strong { font-weight: 900; }
-  #tutorial-modal .t-pane em { font-style: italic; color: #6b6b6b; }
+  #tutorial-modal .t-pane em { font-style: italic; color: var(--asc-muted); }
   #tutorial-modal .t-pane a {
-    color: #8b1e1e;
+    color: var(--asc-accent);
     font-style: italic;
     text-decoration: underline;
-    text-decoration-color: rgba(139, 30, 30, 0.4);
+    text-decoration-color: color-mix(in srgb, var(--asc-accent) 40%, transparent);
   }
-  #tutorial-modal .t-pane a:hover { text-decoration-color: #8b1e1e; }
+  #tutorial-modal .t-pane a:hover { text-decoration-color: var(--asc-accent); }
   #tutorial-modal .t-pane .t-source {
-    font-size: 12px; color: #6b6b6b;
+    font-size: 12px; color: var(--asc-muted);
     font-style: italic; margin-top: 8px;
   }
 
@@ -561,7 +582,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     column-gap: 14px;
     row-gap: 2px;
     padding: 14px 0;
-    border-bottom: 1px solid rgba(26,26,26,0.18);
+    border-bottom: 1px solid color-mix(in srgb, var(--asc-on-surface) 18%, transparent);
     align-items: start;
   }
   #tutorial-modal .t-steps li:last-child { border-bottom: 0; }
@@ -571,12 +592,12 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     grid-column: 1;
     grid-row: 1 / span 2;
     align-self: start;
-    font-family: Georgia, serif;
+    font-family: var(--asc-font);
     font-style: italic;
     font-weight: 900;
     font-size: 36px;
     line-height: 1;
-    color: #8b1e1e;
+    color: var(--asc-accent);
     text-align: right;
   }
   /* Keep both <strong> and <span> in the wide right column */
@@ -589,20 +610,20 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     text-transform: uppercase;
     letter-spacing: 0.04em;
   }
-  #tutorial-modal .t-steps li span { color: #1a1a1a; font-size: 13.5px; }
+  #tutorial-modal .t-steps li span { color: var(--asc-on-surface); font-size: 13.5px; }
 
   /* Footer */
   #tutorial-modal .t-foot {
     display: flex; justify-content: flex-end; gap: 8px;
     padding: 14px 28px;
-    border-top: 4px double #1a1a1a;
-    background: rgba(26, 26, 26, 0.03);
+    border-top: 4px double var(--asc-on-surface);
+    background: color-mix(in srgb, var(--asc-on-surface) 3%, transparent);
   }
   #tutorial-modal .t-ok {
-    background: #1a1a1a;
-    color: #f4ecd8;
-    border: 2px solid #1a1a1a;
-    border-radius: 0;
+    background: var(--asc-on-surface);
+    color: var(--asc-surface);
+    border: 2px solid var(--asc-on-surface);
+    border-radius: var(--asc-radius);
     padding: 8px 22px;
     font-family: inherit;
     font-size: 12px; font-weight: 900;
@@ -611,51 +632,51 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     cursor: pointer;
   }
   #tutorial-modal .t-ok:hover {
-    background: #8b1e1e;
-    border-color: #8b1e1e;
+    background: var(--asc-accent);
+    border-color: var(--asc-accent);
   }
 
   /* ───── preview modal — same vintage palette ───── */
   #preview-modal {
     position: fixed; inset: 0; z-index: 9500;
     display: flex; align-items: center; justify-content: center;
-    background: rgba(26, 26, 26, 0.45);
+    background: color-mix(in srgb, var(--asc-on-surface) 45%, transparent);
     backdrop-filter: blur(2px);
     padding: 24px;
   }
   #preview-modal.hidden { display: none; }
   #preview-modal .modal-card {
-    background: #f4ecd8;
+    background: var(--asc-surface);
     width: min(560px, 100%);
     max-height: 82vh;
-    border: 3px solid #1a1a1a;
-    border-radius: 0;
-    box-shadow: 6px 6px 0 #1a1a1a;
+    border: 3px solid var(--asc-on-surface);
+    border-radius: var(--asc-radius);
+    box-shadow: var(--asc-shadow-lg);
     display: flex; flex-direction: column;
     overflow: hidden;
-    color: #1a1a1a;
-    font-family: Georgia, "Songti SC", "Source Han Serif SC", "Noto Serif CJK SC", serif;
+    color: var(--asc-on-surface);
+    font-family: var(--asc-font);
   }
   #preview-modal header {
     display: flex; align-items: center; justify-content: space-between;
     padding: 16px 24px 12px;
-    border-bottom: 3px double #1a1a1a;
+    border-bottom: 3px double var(--asc-on-surface);
     font-family: inherit;
     font-weight: 900;
     font-size: 18px;
     text-transform: uppercase;
     letter-spacing: 0.02em;
-    color: #1a1a1a;
+    color: var(--asc-on-surface);
     background: transparent;
   }
   #preview-modal header .close {
     border: 0; background: transparent; cursor: pointer;
-    font-family: Georgia, serif;
-    font-size: 26px; color: #1a1a1a; line-height: 1;
+    font-family: var(--asc-font);
+    font-size: 26px; color: var(--asc-on-surface); line-height: 1;
     padding: 0 4px;
     font-weight: 400;
   }
-  #preview-modal header .close:hover { color: #8b1e1e; }
+  #preview-modal header .close:hover { color: var(--asc-accent); }
   #preview-modal .modal-body {
     flex: 1; overflow: auto;
     padding: 14px 24px;
@@ -664,12 +685,12 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
   #preview-modal footer {
     display: flex; justify-content: flex-end; gap: 8px;
     padding: 12px 24px;
-    border-top: 3px double #1a1a1a;
-    background: rgba(26, 26, 26, 0.03);
+    border-top: 3px double var(--asc-on-surface);
+    background: color-mix(in srgb, var(--asc-on-surface) 3%, transparent);
   }
   #preview-modal footer button {
-    border: 2px solid #1a1a1a;
-    border-radius: 0;
+    border: 2px solid var(--asc-on-surface);
+    border-radius: var(--asc-radius);
     padding: 6px 18px;
     font-family: inherit;
     font-size: 11px;
@@ -678,53 +699,53 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     letter-spacing: 0.10em;
     cursor: pointer;
     background: transparent;
-    color: #1a1a1a;
+    color: var(--asc-on-surface);
   }
-  #preview-modal .modal-cancel:hover { background: rgba(26,26,26,0.08); }
+  #preview-modal .modal-cancel:hover { background: color-mix(in srgb, var(--asc-on-surface) 8%, transparent); }
   #preview-modal .modal-send {
-    background: #1a1a1a;
-    color: #f4ecd8;
+    background: var(--asc-on-surface);
+    color: var(--asc-surface);
   }
   #preview-modal .modal-send:hover {
-    background: #8b1e1e; border-color: #8b1e1e;
+    background: var(--asc-accent); border-color: var(--asc-accent);
   }
   #preview-modal .section { margin-bottom: 14px; }
   #preview-modal .section h3 {
     font-family: inherit;
     font-size: 11px;
     font-weight: 900;
-    color: #8b1e1e;
+    color: var(--asc-accent);
     text-transform: uppercase;
     letter-spacing: 0.20em;
     margin: 8px 0 6px;
     padding-bottom: 4px;
-    border-bottom: 2px solid #1a1a1a;
+    border-bottom: 2px solid var(--asc-on-surface);
   }
   #preview-modal .section .empty {
-    color: #6b6b6b; font-size: 13px;
+    color: var(--asc-muted); font-size: 13px;
     font-style: italic; padding: 4px 0;
   }
   #preview-modal .p-item {
     display: flex; gap: 12px;
     padding: 7px 0;
-    border-bottom: 1px solid rgba(26, 26, 26, 0.15);
+    border-bottom: 1px solid color-mix(in srgb, var(--asc-on-surface) 15%, transparent);
   }
   #preview-modal .p-item:last-child { border-bottom: 0; }
   #preview-modal .p-item .num {
     flex-shrink: 0;
-    font-family: Georgia, serif;
+    font-family: var(--asc-font);
     font-weight: 900;
     font-style: italic;
     font-size: 20px;
     line-height: 1;
-    color: #8b1e1e;
+    color: var(--asc-accent);
     padding-top: 2px;
     min-width: 22px;
   }
   #preview-modal .p-item .meta {
     font-family: ui-monospace, monospace;
     font-size: 10px;
-    color: #6b6b6b;
+    color: var(--asc-muted);
     text-transform: uppercase;
     letter-spacing: 0.08em;
     margin-bottom: 2px;
@@ -732,7 +753,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
   #preview-modal .p-item .text {
     font-family: inherit;
     font-size: 14px;
-    color: #1a1a1a;
+    color: var(--asc-on-surface);
     line-height: 1.55;
     word-wrap: break-word;
   }
@@ -747,7 +768,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
   /* Post-submit overlay — newspaper cream + dark ink, red accent */
   #submit-overlay {
     position: fixed; inset: 0;
-    background: rgba(244, 236, 216, 0.93);
+    background: color-mix(in srgb, var(--asc-surface) 93%, transparent);
     backdrop-filter: blur(3px);
     -webkit-backdrop-filter: blur(3px);
     z-index: 9100;  /* below notebook (9200), so user can still operate it */
@@ -756,15 +777,15 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     align-items: center; justify-content: center;
     text-align: center;
     padding: 32px;
-    color: #1a1a1a;
-    font-family: Georgia, "Songti SC", "Source Han Serif SC", "Noto Serif CJK SC", serif;
+    color: var(--asc-on-surface);
+    font-family: var(--asc-font);
     opacity: 0; pointer-events: none;
     transition: opacity 240ms ease;
   }
   #submit-overlay.visible { opacity: 1; pointer-events: auto; }
   #submit-overlay .icon {
     font-size: 14px; font-weight: 700;
-    color: #8b1e1e;
+    color: var(--asc-accent);
     letter-spacing: 0.32em;
     text-transform: uppercase;
     margin-bottom: 10px;
@@ -772,34 +793,38 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
   #submit-overlay .title {
     font-family: inherit;
     font-size: 38px; font-weight: 900;
-    color: #1a1a1a;
+    color: var(--asc-on-surface);
     margin: 0 auto 14px;
     letter-spacing: 0.02em;
     line-height: 1.05;
     text-transform: uppercase;
     display: inline-flex; align-items: center; gap: 14px;
     padding: 8px 0;
-    border-top: 3px double #1a1a1a;
-    border-bottom: 3px double #1a1a1a;
+    border-top: 3px double var(--asc-on-surface);
+    border-bottom: 3px double var(--asc-on-surface);
   }
   #submit-overlay .pulse-dot {
     display: inline-block;
     width: 12px; height: 12px; border-radius: 50%;
-    background: #8b1e1e;
+    background: var(--asc-accent);
     animation: pulse-ink 1.6s infinite;
   }
   @keyframes pulse-ink {
-    0%, 100% { box-shadow: 0 0 0 0 rgba(139, 30, 30, 0.45); }
-    50%      { box-shadow: 0 0 0 9px rgba(139, 30, 30, 0); }
+    0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--asc-accent) 45%, transparent); }
+    50%      { box-shadow: 0 0 0 9px transparent; }
   }
   #submit-overlay .subtitle {
     font-family: inherit;
-    font-size: 15px; color: #1a1a1a;
+    font-size: 15px; color: var(--asc-on-surface);
     line-height: 1.75; max-width: 440px;
     margin-top: 6px;
   }
-  #submit-overlay .subtitle strong { color: #8b1e1e; font-weight: 900; }
+  #submit-overlay .subtitle strong { color: var(--asc-accent); font-weight: 900; }
 </style>
+<!-- 壳子主题变量:register_css 选模版时注入对应的 :root{ --asc-* } 覆盖上面的默认值。
+     纯 CSS(非 tailwindcss),立即生效、无需等 Tailwind 编译,避免壳子闪一下报纸风。
+     源码见本文件底部 CHROME_THEMES。空串时壳子用上面 :root 的报纸默认。 -->
+<style id="ass-chrome-vars">__CHROME_VARS__</style>
 <!-- 模版预设语义类(register_css 选哪套就注入哪套;所有模版共用同一组 ass-* 类名)。
      默认报纸风格;切换模版时这里整段被替换。源码见本文件底部 TEMPLATES。 -->
 <style id="ass-preset-styles" type="text/tailwindcss">__PRESET_STYLES__</style>
@@ -1461,7 +1486,10 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     if (typeof css === 'string' && el.textContent !== css) el.textContent = css;
   }
   function applyStyles(d) {
-    // 模版预设(ass-preset-styles)+ 会话自定义(ass-session-styles)分槽更新。
+    // 壳子主题变量(ass-chrome-vars)+ 模版预设(ass-preset-styles)
+    // + 会话自定义(ass-session-styles)分槽更新。换模版时三槽一起热刷新,
+    // 右下角工具栏 / 日记本 / 弹窗随之换肤。chrome_css 缺省时不动壳子主题。
+    if (d.chrome_css !== undefined) upsertStyleSlot('ass-chrome-vars', d.chrome_css);
     upsertStyleSlot('ass-preset-styles', d.preset_css);
     upsertStyleSlot('ass-session-styles', d.session_css);
   }
@@ -1512,10 +1540,16 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
 """
 
 
-def render_html(sid: str, preset_css: str = "", session_css: str = "") -> str:
+def render_html(
+    sid: str,
+    preset_css: str = "",
+    session_css: str = "",
+    chrome_css: str = "",
+) -> str:
     return (
         HTML_TEMPLATE
         .replace("__SID__", sid)
+        .replace("__CHROME_VARS__", chrome_css)
         .replace("__PRESET_STYLES__", preset_css)
         .replace("__INITIAL_STYLES__", session_css)
     )
@@ -1564,6 +1598,17 @@ def compose_styles_css(rules: dict[str, str]) -> str:
 def template_css(name: str | None) -> str:
     """取某套模版的预设 CSS 源码;未知/空名回退到默认模版。"""
     return TEMPLATES.get(name or "", TEMPLATES[DEFAULT_TEMPLATE])
+
+
+def chrome_vars_css(name: str | None) -> str:
+    """取某套模版的"壳子主题"CSS(注入 #ass-chrome-vars 槽)。
+
+    返回一段 `:root { --asc-*: ...; }`,覆盖 HTML 里 :root 的报纸默认值,
+    让右下角工具栏 / 日记本 / 弹窗 / 遮罩跟模版同步换肤。未知/空名回退默认模版。
+    """
+    tokens = CHROME_THEMES.get(name or "", CHROME_THEMES[DEFAULT_TEMPLATE])
+    lines = "\n".join(f"    {k}: {v};" for k, v in tokens.items())
+    return ":root {\n" + lines + "\n}"
 
 
 # ───── 模版库 ─────
@@ -1788,4 +1833,94 @@ TEMPLATES: dict[str, str] = {
     "暗夜霓虹": _CYBER_CSS,
     "柔和糖果": _CANDY_CSS,
     "杂志大刊": _MAGAZINE_CSS,
+}
+
+
+# ───── 壳子主题(host chrome themes)─────
+#
+# 每套模版除了 ass-* 内容样式,再配一套"壳子" token,注入 #ass-chrome-vars 槽,
+# 覆盖 HTML <head> :root 里的报纸默认值。于是右下角工具栏 / 日记本 / 预览弹窗 /
+# 教程弹窗 / 提交遮罩 / 批注徽章全都跟内容区同一套配色,不再总是报纸的米黄+墨黑。
+# token 取值刻意跟对应模版的内容配色对齐(底色 / 文字 / 强调 / 字体 / 圆角 / 阴影)。
+# 语义命名让深浅主题自动正确:on-surface 既做文字也做描边,反白小块用 surface
+# 当文字色,故暗色模版下也读得清;更淡的叠色由壳子 CSS 用 color-mix 从这几个基色推出。
+_SANS = 'ui-sans-serif, system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif'
+_SERIF = 'Georgia, "Songti SC", "Source Han Serif SC", "Noto Serif CJK SC", serif'
+
+CHROME_THEMES: dict[str, dict[str, str]] = {
+    "报纸": {
+        "--asc-page": "#e9e0ca",
+        "--asc-surface": "#f4ecd8",
+        "--asc-on-surface": "#1a1a1a",
+        "--asc-accent": "#8b1e1e",
+        "--asc-accent-2": "#6b1414",
+        "--asc-muted": "#6b6b6b",
+        "--asc-field": "#fffaf0",
+        "--asc-send": "#2d7148",
+        "--asc-send-2": "#1f5634",
+        "--asc-font": _SERIF,
+        "--asc-radius": "0px",
+        "--asc-shadow": "4px 4px 0 var(--asc-on-surface)",
+        "--asc-shadow-lg": "8px 8px 0 var(--asc-on-surface)",
+    },
+    "极简白": {
+        "--asc-page": "#fafafa",
+        "--asc-surface": "#ffffff",
+        "--asc-on-surface": "#0f172a",
+        "--asc-accent": "#2563eb",
+        "--asc-accent-2": "#1d4ed8",
+        "--asc-muted": "#94a3b8",
+        "--asc-field": "#ffffff",
+        "--asc-send": "#16a34a",
+        "--asc-send-2": "#15803d",
+        "--asc-font": _SANS,
+        "--asc-radius": "12px",
+        "--asc-shadow": "0 6px 20px rgba(15,23,42,0.10)",
+        "--asc-shadow-lg": "0 20px 50px rgba(15,23,42,0.20)",
+    },
+    "暗夜霓虹": {
+        "--asc-page": "#0a0e14",
+        "--asc-surface": "#111827",
+        "--asc-on-surface": "#e2e8f0",
+        "--asc-accent": "#22d3ee",
+        "--asc-accent-2": "#06b6d4",
+        "--asc-muted": "#64748b",
+        "--asc-field": "#0d1420",
+        "--asc-send": "#10b981",
+        "--asc-send-2": "#059669",
+        "--asc-font": _SANS,
+        "--asc-radius": "12px",
+        "--asc-shadow": "0 0 22px rgba(34,211,238,0.20)",
+        "--asc-shadow-lg": "0 0 46px rgba(34,211,238,0.28)",
+    },
+    "柔和糖果": {
+        "--asc-page": "#fbf0f7",
+        "--asc-surface": "#ffffff",
+        "--asc-on-surface": "#4a3a44",
+        "--asc-accent": "#ec4899",
+        "--asc-accent-2": "#db2777",
+        "--asc-muted": "#a78b9c",
+        "--asc-field": "#ffffff",
+        "--asc-send": "#22c55e",
+        "--asc-send-2": "#16a34a",
+        "--asc-font": _SANS,
+        "--asc-radius": "24px",
+        "--asc-shadow": "0 10px 30px rgba(236,72,153,0.18)",
+        "--asc-shadow-lg": "0 24px 56px rgba(236,72,153,0.26)",
+    },
+    "杂志大刊": {
+        "--asc-page": "#ffffff",
+        "--asc-surface": "#ffffff",
+        "--asc-on-surface": "#111111",
+        "--asc-accent": "#ea580c",
+        "--asc-accent-2": "#c2410c",
+        "--asc-muted": "#737373",
+        "--asc-field": "#ffffff",
+        "--asc-send": "#16a34a",
+        "--asc-send-2": "#15803d",
+        "--asc-font": _SANS,
+        "--asc-radius": "0px",
+        "--asc-shadow": "5px 5px 0 var(--asc-on-surface)",
+        "--asc-shadow-lg": "8px 8px 0 var(--asc-on-surface)",
+    },
 }
