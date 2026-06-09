@@ -146,13 +146,12 @@ HTML_CONTRACT = """`html` 写法契约:
 """
 
 
-RENDER_DOC = """把一份 UI artifact 推给用户,并**同步阻塞**等他提交反馈。
+RENDER_DOC = """把一份 UI artifact 推给用户,并**同步阻塞**等他提交反馈(固定最多 180 秒)。
 
 前置:先调过 set_session 进行预热
 
 参数:
   • html:纯 HTML 字符串,**写法见 set_session 返回的 `render_html_contract`**。
-  • max_wait_seconds:等待用户回复的同步阻塞时间上限,默认 180。
 """
 
 
@@ -223,11 +222,13 @@ async def set_session(
     }
 
 
+RENDER_WAIT_SECONDS = 180  # 推送后同步阻塞等用户提交的固定时长。
+
+
 @mcp.tool(description=RENDER_DOC)
 async def render_artifact(
     html: str,
     ctx: Context,
-    max_wait_seconds: int = 180,
 ) -> dict[str, Any]:
     sid = ctx.session_id or stdio_sid()
     state = get_or_create(sid)
@@ -263,9 +264,8 @@ async def render_artifact(
         "chrome_css": chrome_vars_css(state.template),
     })
 
-    wait = max(1, min(int(max_wait_seconds), 180))
     try:
-        await asyncio.wait_for(state.submit_event.wait(), timeout=wait)
+        await asyncio.wait_for(state.submit_event.wait(), timeout=RENDER_WAIT_SECONDS)
     except asyncio.TimeoutError:
         return {
             "sid": sid,
