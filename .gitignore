@@ -11,3 +11,4 @@ wheels/
 
 # Local artifact archive (per-session HTML snapshots)
 artifacts/
+ref/

@@ -16,6 +16,10 @@ class Config:
     # 每次 render_artifact 把 HTML 落地到 <archive_dir>/<sid>/<timestamp>.html。
     # 相对路径相对于进程 cwd。设为 None / 空串可关闭。
     archive_dir: str | None = "artifacts"
+    # OpenAI 兼容图片生成 API
+    openai_api_key: str | None = None
+    openai_base_url: str | None = None
+    openai_image_model: str = "gpt-image-1"
 
 
 CONFIG = Config()
@@ -53,6 +57,15 @@ class SSEClient:
 
 
 @dataclass
+class PoolImage:
+    """画布 pool 里的一张图。"""
+    image_id: str
+    png_bytes: bytes
+    source: str          # "generated" | "uploaded" | "pasted"
+    prompt: str = ""     # 生成时的 prompt(上传/粘贴为空）
+    label: str = ""      # 用户可编辑的标签
+
+@dataclass
 class SessionState:
     sid: str
     artifact_html: str | None = None
@@ -68,6 +81,10 @@ class SessionState:
     submitted_data: Any = None  # 结构化 feedback: {user_comments, user_form_inputs}
     error: str | None = None
     opened: bool = False
+    # 共享图片池:所有生成/上传/粘贴的图片,跨 render 保留
+    image_pool: dict[str, PoolImage] = field(default_factory=dict)  # image_id -> PoolImage
+    # 槽位分配:img-ai 的 data-ai-id -> 被指派的 image_id
+    image_assignments: dict[str, str] = field(default_factory=dict)
 
 
 SESSIONS: dict[str, SessionState] = {}

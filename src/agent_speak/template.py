@@ -820,6 +820,148 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     margin-top: 6px;
   }
   #submit-overlay .subtitle strong { color: var(--asc-accent); font-weight: 900; }
+
+  /* ───── img-ai placeholder & paint badge ───── */
+  img-ai {
+    display: block;
+    position: relative;
+    min-height: 120px;
+    background: color-mix(in srgb, var(--asc-on-surface, #1a1a1a) 5%, transparent);
+    border: 2px dashed color-mix(in srgb, var(--asc-on-surface, #1a1a1a) 20%, transparent);
+    overflow: hidden;
+  }
+  img-ai img {
+    display: block; width: 100%; height: auto;
+  }
+  img-ai .imgai-placeholder {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 24px; gap: 8px; min-height: 120px;
+    color: var(--asc-muted, #6b6b6b); font-size: 13px; text-align: center;
+  }
+  img-ai .imgai-placeholder .spinner {
+    width: 24px; height: 24px; border: 3px solid color-mix(in srgb, var(--asc-on-surface) 15%, transparent);
+    border-top-color: var(--asc-accent); border-radius: 50%;
+    animation: imgai-spin 0.8s linear infinite;
+  }
+  @keyframes imgai-spin { to { transform: rotate(360deg); } }
+  img-ai .imgai-badge {
+    position: absolute; top: 6px; right: 6px;
+    width: 28px; height: 28px; border-radius: 50%;
+    background: var(--asc-accent); color: var(--asc-surface, #f4ecd8);
+    font-size: 14px; display: flex; align-items: center; justify-content: center;
+    cursor: pointer; border: 2px solid var(--asc-surface, #f4ecd8);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+    opacity: 0; transition: opacity 150ms;
+    z-index: 10;
+  }
+  img-ai:hover .imgai-badge, img-ai .imgai-badge.visible { opacity: 1; }
+  img-ai .imgai-badge:hover { transform: scale(1.1); }
+
+  /* ───── image canvas panel (shares nb-page slot) ───── */
+  .img-panel {
+    width: 380px;
+    background: var(--asc-surface);
+    border: 2px solid var(--asc-on-surface);
+    border-radius: var(--asc-radius);
+    box-shadow: var(--asc-shadow);
+    overflow: hidden;
+    display: flex; flex-direction: column;
+    max-height: 70vh;
+    color: var(--asc-on-surface);
+    font-family: var(--asc-font);
+    transform-origin: bottom right;
+    transition: max-height 280ms ease, opacity 220ms ease, transform 220ms ease;
+  }
+  .img-panel.hidden {
+    max-height: 0; opacity: 0; transform: translateY(8px) scale(0.92);
+    pointer-events: none; border-color: transparent; box-shadow: none;
+  }
+  .img-panel-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 14px 8px;
+    border-bottom: 3px double var(--asc-on-surface);
+    user-select: none;
+    font-weight: 900; font-size: 14px;
+    text-transform: uppercase; letter-spacing: 0.06em;
+  }
+  .img-panel-header select {
+    border: 1px solid var(--asc-on-surface); border-radius: var(--asc-radius);
+    background: var(--asc-field, #fffaf0); color: var(--asc-on-surface);
+    padding: 3px 8px; font-size: 11px; font-family: inherit; font-weight: 700;
+    max-width: 160px;
+  }
+  .img-panel-prompt {
+    display: flex; gap: 6px; padding: 10px 14px;
+    border-bottom: 1px solid color-mix(in srgb, var(--asc-on-surface) 18%, transparent);
+  }
+  .img-panel-prompt textarea {
+    flex: 1; height: 52px; border: 1px solid var(--asc-on-surface);
+    border-radius: var(--asc-radius); padding: 6px 8px;
+    font-size: 12px; resize: none; font-family: inherit;
+    color: var(--asc-on-surface); background: var(--asc-field, #fffaf0);
+  }
+  .img-panel-prompt textarea:focus { outline: 0; border-color: var(--asc-accent); }
+  .img-panel-prompt button {
+    align-self: flex-end;
+    padding: 6px 14px;
+    background: var(--asc-on-surface); color: var(--asc-surface);
+    border: 2px solid var(--asc-on-surface); border-radius: var(--asc-radius);
+    font-family: inherit; font-size: 11px; font-weight: 900;
+    text-transform: uppercase; letter-spacing: 0.08em; cursor: pointer;
+  }
+  .img-panel-prompt button:hover { background: var(--asc-accent); border-color: var(--asc-accent); }
+  .img-panel-prompt button:disabled {
+    opacity: 0.4; cursor: not-allowed;
+  }
+  .img-panel-grid {
+    flex: 1; overflow: auto; padding: 10px;
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px;
+    min-height: 100px;
+  }
+  .img-panel-grid .empty-grid {
+    grid-column: 1 / -1; text-align: center;
+    color: var(--asc-muted); font-size: 12px; font-style: italic;
+    padding: 20px 0;
+  }
+  .img-panel-grid .img-thumb {
+    position: relative; cursor: pointer;
+    border: 2px solid transparent; border-radius: var(--asc-radius);
+    overflow: hidden; aspect-ratio: 1;
+    transition: border-color 120ms;
+  }
+  .img-panel-grid .img-thumb img {
+    width: 100%; height: 100%; object-fit: cover; display: block;
+  }
+  .img-panel-grid .img-thumb.selected {
+    border-color: var(--asc-send);
+    box-shadow: 0 0 0 2px var(--asc-send);
+  }
+  .img-panel-grid .img-thumb.ref {
+    border-color: var(--asc-accent);
+    box-shadow: 0 0 0 2px var(--asc-accent);
+  }
+  .img-panel-grid .img-thumb .tag {
+    position: absolute; bottom: 2px; left: 2px;
+    font-size: 9px; font-weight: 700; padding: 1px 5px;
+    border-radius: 3px; color: white;
+  }
+  .img-panel-grid .img-thumb .tag.sel-tag { background: var(--asc-send); }
+  .img-panel-grid .img-thumb .tag.ref-tag { background: var(--asc-accent); }
+  .img-panel-footer {
+    display: flex; gap: 6px; padding: 8px 14px;
+    border-top: 2px solid var(--asc-on-surface);
+    justify-content: space-between; align-items: center;
+    font-size: 11px;
+  }
+  .img-panel-footer .hint { color: var(--asc-muted); font-style: italic; }
+  .img-panel-footer button {
+    padding: 5px 14px;
+    background: var(--asc-send); color: var(--asc-surface);
+    border: 0; border-radius: var(--asc-radius);
+    font-family: inherit; font-size: 11px; font-weight: 900;
+    text-transform: uppercase; letter-spacing: 0.08em; cursor: pointer;
+  }
+  .img-panel-footer button:hover { background: var(--asc-send-2); }
 </style>
 <!-- 壳子主题变量:set_session 选模版时注入对应的 :root{ --asc-* } 覆盖上面的默认值。
      纯 CSS(非 tailwindcss),立即生效、无需等 Tailwind 编译,避免壳子闪一下报纸风。
@@ -847,11 +989,34 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
       <div id="anno-list"></div>
     </div>
   </div>
+  <div class="img-panel hidden" id="img-panel">
+    <div class="img-panel-header">
+      <span>🎨 图片画布</span>
+      <select id="img-slot-select"></select>
+    </div>
+    <div class="img-panel-prompt">
+      <textarea id="img-prompt" placeholder="描述你想要的图片…"></textarea>
+      <div style="display:flex;flex-direction:column;gap:4px;align-self:flex-end">
+        <select id="img-n-select" style="border:1px solid var(--asc-on-surface);border-radius:var(--asc-radius);background:var(--asc-field);color:var(--asc-on-surface);padding:2px 6px;font-size:11px;font-family:inherit;font-weight:700">
+          <option value="1">×1</option><option value="2">×2</option><option value="3">×3</option><option value="4" selected>×4</option>
+        </select>
+        <button id="img-gen-btn" type="button">生成</button>
+      </div>
+    </div>
+    <div class="img-panel-grid" id="img-grid">
+      <div class="empty-grid">还没有图片</div>
+    </div>
+    <div class="img-panel-footer">
+      <span class="hint">左键选定 · 右键设为参考</span>
+      <button id="img-use-btn" type="button">✓ 使用选中</button>
+    </div>
+  </div>
   <div class="nb-toolbar">
     <button id="mode-btn" class="on" type="button" title="批注模式开关">
       <span class="indicator"></span>
       <span id="mode-label">批注中</span>
     </button>
+    <button id="img-panel-btn" type="button" title="图片画布" style="display:none">🎨 图片 <span id="img-count">0</span></button>
     <button id="preview-btn" type="button" title="预览发送内容">预览</button>
     <button id="send-btn" type="button" disabled title="发送给 AI">发送</button>
     <button id="help-btn" type="button" title="使用教程" aria-label="帮助">?</button>
@@ -1015,6 +1180,21 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
   let isInspecting = true;   // 默认打开
   let editingId = null;
 
+  // ───── img-ai state ─────
+  const imgPanel = document.getElementById('img-panel');
+  const imgPanelBtn = document.getElementById('img-panel-btn');
+  const imgCount = document.getElementById('img-count');
+  const imgSlotSelect = document.getElementById('img-slot-select');
+  const imgPrompt = document.getElementById('img-prompt');
+  const imgGenBtn = document.getElementById('img-gen-btn');
+  const imgGrid = document.getElementById('img-grid');
+  const imgUseBtn = document.getElementById('img-use-btn');
+
+  let imgPanelOpen = false;
+  let activeImgSlot = null;   // current ai_id shown in panel
+  // ai_id -> { prompt, variants: [{image_id, url, prompt}], selected_id, ref_ids: Set }
+  const imgSlots = new Map();
+
   // ───── status panel ─────
   function showStatus(html, color) {
     statusEl.innerHTML = `<div class="panel ${color || 'text-gray-500'}">${html}</div>`;
@@ -1063,7 +1243,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     'UL','OL','LI','DL','DT','DD',
     'TABLE','THEAD','TBODY','TFOOT','TR','TD','TH','CAPTION',
     'FORM','FIELDSET','LEGEND','LABEL','INPUT','TEXTAREA','SELECT','BUTTON',
-    'A','IMG','SVG','VIDEO','AUDIO','CANVAS','PICTURE',
+    'A','IMG','IMG-AI','SVG','VIDEO','AUDIO','CANVAS','PICTURE',
     'DETAILS','SUMMARY',
   ]);
   function ensureAnchors() {
@@ -1298,6 +1478,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     clearStatus();
     setInspecting(isInspecting);
     maybeShowFirstTimeTutorial();
+    initImgAi();
   }
 
   function showSubmitOverlay() { submitOverlay.classList.add('visible'); }
@@ -1335,6 +1516,23 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
   }
 
   function buildPayload() {
+    // Collect image assignments
+    const assignments = imgSlots._assignments || {};
+    const imageResults = [];
+    container.querySelectorAll('img-ai').forEach(el => {
+      const aiId = el.getAttribute('data-ai-id');
+      const imageId = assignments[aiId];
+      if (imageId) {
+        const img = imgSlots.get(imageId);
+        imageResults.push({
+          ai_id: aiId,
+          image_id: imageId,
+          url: `/assets/${SID}/${imageId}.png`,
+          prompt: img ? img.prompt : '',
+          source: img ? img.source : '',
+        });
+      }
+    });
     return {
       user_comments: [...annotations.entries()].map(([id, a]) => ({
         target_id: id,
@@ -1342,6 +1540,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
         instruction: a.instruction,
       })),
       user_form_inputs: harvestForms(),
+      image_results: imageResults,
     };
   }
 
@@ -1460,6 +1659,329 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     }
   }
   sendBtn.addEventListener('click', doSubmit);
+
+  // ───── img-ai: shared canvas logic ─────
+  function toggleImgPanel(forceAiId) {
+    if (forceAiId) activeImgSlot = forceAiId;
+    imgPanelOpen = !imgPanelOpen || !!forceAiId;
+    imgPanel.classList.toggle('hidden', !imgPanelOpen);
+    if (imgPanelOpen) {
+      // Close annotation panel when image panel opens
+      if (isInspecting) setInspecting(false);
+      refreshImgPanel();
+    }
+  }
+  imgPanelBtn.addEventListener('click', () => toggleImgPanel());
+
+  function getImgAiSlots() {
+    return [...container.querySelectorAll('img-ai')].map(el => ({
+      aiId: el.getAttribute('data-ai-id'),
+      prompt: el.getAttribute('prompt') || '',
+      placeholder: el.getAttribute('placeholder') || '',
+      imageId: el.getAttribute('image-id') || '',
+    }));
+  }
+
+  async function loadPool() {
+    try {
+      const r = await fetch(`/api/${SID}/image-pool`);
+      const d = await r.json();
+      if (!d.ok) return;
+      imgSlots.clear();
+      d.images.forEach(img => imgSlots.set(img.image_id, img));
+      // store assignments
+      imgSlots._assignments = d.assignments || {};
+    } catch(e) { console.error('loadPool', e); }
+  }
+
+  function refreshImgPanel() {
+    const slots = getImgAiSlots();
+    const assignments = imgSlots._assignments || {};
+
+    // Update slot selector
+    imgSlotSelect.innerHTML = slots.map(s =>
+      `<option value="${escHtml(s.aiId)}" ${s.aiId === activeImgSlot ? 'selected' : ''}>${escHtml(s.aiId)}</option>`
+    ).join('');
+    if (slots.length && !activeImgSlot) activeImgSlot = slots[0].aiId;
+
+    // Fill prompt from slot if empty
+    if (activeImgSlot && !imgPrompt.value) {
+      const sl = slots.find(s => s.aiId === activeImgSlot);
+      if (sl && sl.prompt) imgPrompt.value = sl.prompt;
+    }
+
+    // Render grid
+    const images = [...imgSlots.values()].filter(v => v.image_id);
+    if (images.length === 0) {
+      imgGrid.innerHTML = '<div class="empty-grid">还没有图片<br>生成、粘贴或拖放添加</div>';
+    } else {
+      imgGrid.innerHTML = images.map(img => {
+        const assignedTo = Object.entries(assignments).find(([,v]) => v === img.image_id);
+        const isAssigned = assignedTo && assignedTo[0] === activeImgSlot;
+        return `<div class="img-thumb ${isAssigned ? 'selected' : ''}" data-imgid="${img.image_id}" title="${escHtml(img.prompt || img.label || img.source)}">
+          <img src="${img.url}" loading="lazy">
+          ${isAssigned ? '<span class="tag sel-tag">✓</span>' : ''}
+          ${assignedTo ? `<span class="tag ref-tag">${escHtml(assignedTo[0]).slice(0,8)}</span>` : ''}
+        </div>`;
+      }).join('');
+    }
+  }
+
+  imgSlotSelect.addEventListener('change', () => {
+    activeImgSlot = imgSlotSelect.value;
+    imgPrompt.value = '';
+    const sl = getImgAiSlots().find(s => s.aiId === activeImgSlot);
+    if (sl && sl.prompt) imgPrompt.value = sl.prompt;
+    refreshImgPanel();
+  });
+
+  // Generate (batch)
+  const imgNSelect = document.getElementById('img-n-select');
+  let generating = false;
+  imgGenBtn.addEventListener('click', async () => {
+    if (generating) return;
+    const prompt = imgPrompt.value.trim();
+    if (!prompt) return;
+    const n = parseInt(imgNSelect.value) || 4;
+    generating = true;
+    imgGenBtn.disabled = true;
+    imgGenBtn.textContent = `生成 ×${n}…`;
+    try {
+      const refIds = [];
+      imgGrid.querySelectorAll('.img-thumb.ref').forEach(el => {
+        refIds.push(el.dataset.imgid);
+      });
+      const r = await fetch(`/api/${SID}/generate`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ prompt, n, reference_ids: refIds }),
+      });
+      const d = await r.json();
+      if (d.ok && d.images) {
+        let firstId = null;
+        d.images.forEach(img => {
+          imgSlots.set(img.image_id, { image_id: img.image_id, url: img.url, prompt, source: 'generated', label: '' });
+          if (!firstId) firstId = img.image_id;
+        });
+        // Auto-assign first image if slot has no image yet
+        const assignments = imgSlots._assignments || {};
+        if (activeImgSlot && !assignments[activeImgSlot] && firstId) {
+          await assignImage(activeImgSlot, firstId);
+        }
+        refreshImgPanel();
+        syncImgAiElements();
+      } else {
+        alert('生成失败: ' + (d.error || 'unknown'));
+      }
+    } catch(e) { alert('生成失败: ' + e.message); }
+    finally {
+      generating = false;
+      imgGenBtn.disabled = false;
+      imgGenBtn.textContent = '生成';
+    }
+  });
+
+  // Click to assign, right-click to mark as reference
+  imgGrid.addEventListener('click', async (e) => {
+    const thumb = e.target.closest('.img-thumb');
+    if (!thumb || !activeImgSlot) return;
+    await assignImage(activeImgSlot, thumb.dataset.imgid);
+    refreshImgPanel();
+    syncImgAiElements();
+  });
+  imgGrid.addEventListener('contextmenu', (e) => {
+    const thumb = e.target.closest('.img-thumb');
+    if (!thumb) return;
+    e.preventDefault();
+    thumb.classList.toggle('ref');
+  });
+
+  async function assignImage(aiId, imageId) {
+    try {
+      await fetch(`/api/${SID}/assign-image`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ ai_id: aiId, image_id: imageId }),
+      });
+      if (!imgSlots._assignments) imgSlots._assignments = {};
+      imgSlots._assignments[aiId] = imageId;
+    } catch(e) { console.error('assign', e); }
+  }
+
+  // "Use selected" button
+  imgUseBtn.addEventListener('click', () => {
+    syncImgAiElements();
+    imgPanelOpen = false;
+    imgPanel.classList.add('hidden');
+  });
+
+  // Sync img-ai elements with assignments
+  function syncImgAiElements() {
+    const assignments = imgSlots._assignments || {};
+    container.querySelectorAll('img-ai').forEach(el => {
+      const aiId = el.getAttribute('data-ai-id');
+      const imageId = assignments[aiId];
+      if (imageId) {
+        const img = el.querySelector('img') || document.createElement('img');
+        img.src = `/assets/${SID}/${imageId}.png`;
+        if (!el.querySelector('img')) {
+          el.innerHTML = '';
+          el.appendChild(img);
+        }
+        // Add paint badge
+        let badge = el.querySelector('.imgai-badge');
+        if (!badge) {
+          badge = document.createElement('div');
+          badge.className = 'imgai-badge visible';
+          badge.innerHTML = '🎨';
+          badge.addEventListener('click', (ev) => {
+            ev.stopPropagation();
+            toggleImgPanel(aiId);
+          });
+          el.appendChild(badge);
+        }
+      } else {
+        // Show placeholder
+        const ph = el.getAttribute('placeholder') || el.getAttribute('prompt') || '等待图片…';
+        if (!el.querySelector('.imgai-placeholder')) {
+          el.innerHTML = `<div class="imgai-placeholder"><div>${escHtml(ph)}</div></div>`;
+          let badge = document.createElement('div');
+          badge.className = 'imgai-badge visible';
+          badge.innerHTML = '🎨';
+          badge.addEventListener('click', (ev) => {
+            ev.stopPropagation();
+            toggleImgPanel(aiId);
+          });
+          el.appendChild(badge);
+        }
+      }
+    });
+  }
+
+  // Paste / Drop into panel
+  document.addEventListener('paste', async (e) => {
+    if (!imgPanelOpen) return;
+    const items = e.clipboardData && e.clipboardData.items;
+    if (!items) return;
+    for (const item of items) {
+      if (item.type.startsWith('image/')) {
+        e.preventDefault();
+        const blob = item.getAsFile();
+        await uploadBlob(blob, 'pasted');
+        return;
+      }
+    }
+  });
+
+  imgPanel.addEventListener('dragover', (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; });
+  imgPanel.addEventListener('drop', async (e) => {
+    e.preventDefault();
+    for (const file of e.dataTransfer.files) {
+      if (file.type.startsWith('image/')) {
+        await uploadBlob(file, 'uploaded');
+      }
+    }
+  });
+
+  async function uploadBlob(blob, source) {
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        const r = await fetch(`/api/${SID}/upload`, {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ data: reader.result, source }),
+        });
+        const d = await r.json();
+        if (d.ok) {
+          imgSlots.set(d.image_id, { image_id: d.image_id, url: d.url, prompt: '', source, label: '' });
+          // Auto-assign if slot empty
+          const assignments = imgSlots._assignments || {};
+          if (activeImgSlot && !assignments[activeImgSlot]) {
+            await assignImage(activeImgSlot, d.image_id);
+          }
+          refreshImgPanel();
+          syncImgAiElements();
+        }
+      } catch(e) { console.error('upload', e); }
+    };
+    reader.readAsDataURL(blob);
+  }
+
+  // After artifact render, scan img-ai and set up
+  function initImgAi() {
+    const slots = getImgAiSlots();
+    const count = slots.length;
+    imgPanelBtn.style.display = count > 0 ? '' : 'none';
+    imgCount.textContent = String(count);
+
+    if (count > 0) {
+      loadPool().then(() => {
+        const assignments = imgSlots._assignments || {};
+        slots.forEach(s => {
+          // 优先级: image-id 属性 > 已有指派(跨render) > prompt(自动生成) > placeholder
+          if (s.imageId && !assignments[s.aiId]) {
+            // image-id 属性:预上传图片,直接指派(不需要生成)
+            if (imgSlots.has(s.imageId) || true) {
+              assignments[s.aiId] = s.imageId;
+              if (!imgSlots._assignments) imgSlots._assignments = {};
+              imgSlots._assignments[s.aiId] = s.imageId;
+              // 同步通知服务端
+              fetch(`/api/${SID}/assign-image`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ ai_id: s.aiId, image_id: s.imageId }),
+              }).catch(() => {});
+            }
+          }
+        });
+        syncImgAiElements();
+        // 对有 prompt 且无指派的槽位自动生成
+        slots.forEach(s => {
+          if (s.prompt && !assignments[s.aiId]) {
+            autoGenerate(s.aiId, s.prompt);
+          }
+        });
+      });
+    }
+  }
+
+  async function autoGenerate(aiId, prompt) {
+    const el = container.querySelector(`img-ai[data-ai-id="${CSS.escape(aiId)}"]`);
+    if (el) {
+      el.innerHTML = `<div class="imgai-placeholder"><div class="spinner"></div><div>生成中…</div><div style="font-size:11px;margin-top:4px;max-width:200px;word-break:break-all">${escHtml(prompt)}</div></div>`;
+      // 加上画笔角标,即使在生成中也能打开画布
+      const badge = document.createElement('div');
+      badge.className = 'imgai-badge visible';
+      badge.innerHTML = '🎨';
+      badge.addEventListener('click', (ev) => { ev.stopPropagation(); toggleImgPanel(aiId); });
+      el.appendChild(badge);
+    }
+    try {
+      const r = await fetch(`/api/${SID}/generate`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ prompt, n: 1 }),
+      });
+      const d = await r.json();
+      if (d.ok && d.images && d.images.length) {
+        const first = d.images[0];
+        imgSlots.set(first.image_id, { image_id: first.image_id, url: first.url, prompt, source: 'generated', label: '' });
+        await assignImage(aiId, first.image_id);
+        refreshImgPanel();
+        syncImgAiElements();
+      } else {
+        const ph = el && el.querySelector('.imgai-placeholder');
+        if (ph) ph.innerHTML =
+          `<div style="color:var(--asc-accent)">⚠ 生成失败</div><div style="font-size:11px">${escHtml(d.error||'')}</div>`;
+      }
+    } catch(e) {
+      console.error('autoGenerate', e);
+      const ph = el && el.querySelector('.imgai-placeholder');
+      if (ph) ph.innerHTML =
+        `<div style="color:var(--asc-accent)">⚠ 生成失败</div><div style="font-size:11px">${escHtml(e.message)}</div>`;
+    }
+  }
 
   // ───── SSE wire ─────
   function reportError(kind, err) {

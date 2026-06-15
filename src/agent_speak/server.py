@@ -143,6 +143,35 @@ HTML_CONTRACT = """`html` 写法契约:
 - 每个表单输入配一个 `<label>`(包裹或 `for=`),host 会把标签和值一起回传。
 - 每次 render 都会**替换**上一份 artifact,清空批注和表单状态。用户提交后页面**故意不关**,
   供下一份 artifact 复用同一 tab。
+- `<img-ai>` 图片元素（host 接管生成、显示、编辑,AI 只写声明）:
+  属性:
+    data-ai-id  — 必填。稳定标识,跨 render 保留已选图片。
+    prompt      — 生图提示词。有 prompt 时 host **自动生成**并在占位区显示加载动画。
+    image-id    — 预上传图片 ID（通过 upload_url 上传后拿到的）。有此属性时**直接显示**,
+                  不触发生成。适用于用户已有素材、或外部工具已生成好图片的场景。
+    placeholder — 占位文字。无 prompt 也无 image-id 时显示虚线框 + 此文字,
+                  等用户在画布面板里手动粘贴/生成/指派。不写则默认"等待图片"。
+  优先级: image-id > 已有指派(跨 render 保留) > prompt(自动生成) > placeholder(纯占位)
+  三种典型写法:
+    ① 需要 AI 生图:
+       <img-ai data-ai-id="hero" prompt="赛博朋克城市夜景"></img-ai>
+    ② 使用预上传图片:
+       <img-ai data-ai-id="hero" image-id="abc123"></img-ai>
+    ③ 纯占位,等用户操作:
+       <img-ai data-ai-id="section-img" placeholder="第二节配图"></img-ai>
+  上传图片(render 之前调,拿 image-id):
+    set_session 返回 upload_url(含当前会话 sid),客户端直接 HTTP POST:
+      curl -X POST {upload_url} -H "Content-Type: application/json" \
+           -d '{"data": "data:image/png;base64,iVBOR...", "label": "素材描述"}'
+      → {"ok": true, "image_id": "abc123", "url": "/assets/..."}
+    拿到 image_id 后在 html 里写 image-id="abc123" 即可。
+  规则:
+    • 同一个 data-ai-id 跨 render 保留——用户选好的图不会因为你改了文案而丢失。
+      **改文案/调布局时保持 ID 不变**。需要全新图片才换 ID。
+    • 不要给 <img-ai> 写 src——host 自动填充。
+    • 用户可随时通过右下角「🎨 图片」按钮打开画布面板,在所有图片的共享池里
+      生成新变体、粘贴/拖放外部图片、右键选参考图编辑、指派到任意槽位。
+    • 提交时 feedback 里的 image_results 会告知每个槽位最终用了哪张图及其 prompt。
 """
 
 
@@ -207,9 +236,11 @@ async def set_session(
             f"推内容过去他就能看到。"
         )
 
+    base = CONFIG.base_url.rstrip("/")
     return {
         "sid": sid,
         "url": _url(sid),
+        "upload_url": f"{base}/api/{sid}/upload",
         "template": state.template,
         "available_templates": list(TEMPLATES),
         "preset_css": template_css(state.template),
@@ -313,3 +344,5 @@ async def wait_user_feedback(
             f"(URL 仅供参考,不需要重发:{_url(sid)})"
         )
     return _finalize(state)
+
+

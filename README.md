@@ -78,7 +78,17 @@ uv run agent-speak --http \            # streamable-http 模式
 
 ### 直接用公网托管版(最快)
 
-不想自己跑,直接接已经部署好的实例:
+不想自己跑,直接接已经部署好的实例。
+
+**Claude Code 一行装好:**
+
+```bash
+claude mcp add --transport http agent-ask https://agent-ask.liuhetian.work/mcp
+```
+
+(默认只在当前项目生效;想全局可用加 `--scope user`。)
+
+其它客户端(Claude Desktop 等)用 JSON 配置:
 
 ```json
 {
@@ -91,7 +101,7 @@ uv run agent-speak --http \            # streamable-http 模式
 }
 ```
 
-加进你的 MCP 客户端配置(Claude Code、Claude Desktop 等)就能用。无需安装、无需端口、无需反代。
+无需安装、无需端口、无需反代。
 
 > 公网实例无鉴权,会话 URL 是 UUID 强度的——别在公开场合贴出来。介意隐私就跑本地 stdio。
 

@@ -29,6 +29,9 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         help="public base URL the browser will hit (required for --http)",
     )
     p.add_argument("--log-level", default="warning")
+    p.add_argument("--openai-api-key", default=None, help="OpenAI API key (or env OPENAI_API_KEY)")
+    p.add_argument("--openai-base-url", default=None, help="OpenAI base URL (or env OPENAI_BASE_URL)")
+    p.add_argument("--openai-image-model", default=None, help="image model name (default gpt-image-1)")
     return p
 
 
@@ -64,12 +67,17 @@ CONFIG_LOG_LEVEL = "warning"
 
 
 def main() -> None:
+    import os
     args = _build_arg_parser().parse_args()
     global CONFIG_LOG_LEVEL
     CONFIG_LOG_LEVEL = args.log_level
     logging.basicConfig(level=args.log_level.upper())
 
     CONFIG.auto_open = not args.no_open
+    CONFIG.openai_api_key = args.openai_api_key or os.environ.get("OPENAI_API_KEY")
+    CONFIG.openai_base_url = args.openai_base_url or os.environ.get("OPENAI_BASE_URL")
+    if args.openai_image_model:
+        CONFIG.openai_image_model = args.openai_image_model
 
     if args.http:
         if not args.public_url:
