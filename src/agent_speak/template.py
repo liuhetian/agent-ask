@@ -956,6 +956,38 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
   #img-modal .img-grid .img-thumb img {
     width: 100%; height: 100%; object-fit: cover; display: block;
   }
+  #img-modal .img-grid .img-thumb.generating {
+    border: 2px dashed color-mix(in srgb, var(--asc-on-surface) 25%, transparent);
+    cursor: default;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 6px;
+    background: color-mix(in srgb, var(--asc-on-surface) 4%, transparent);
+  }
+  #img-modal .img-grid .img-thumb.generating .ph-spinner {
+    width: 20px; height: 20px;
+    border: 2px solid color-mix(in srgb, var(--asc-on-surface) 15%, transparent);
+    border-top-color: var(--asc-accent);
+    border-radius: 50%;
+    animation: imgai-spin 0.8s linear infinite;
+  }
+  #img-modal .img-grid .img-thumb.generating .ph-text {
+    font-size: 10px; color: var(--asc-muted);
+    text-align: center; padding: 0 4px;
+    overflow: hidden; text-overflow: ellipsis;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+    word-break: break-all;
+  }
+  #img-modal .img-grid .img-thumb.gen-error {
+    border-color: var(--asc-accent);
+    border-style: dashed;
+    cursor: default;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 4px;
+    background: color-mix(in srgb, var(--asc-accent) 5%, transparent);
+  }
+  #img-modal .img-grid .img-thumb.gen-error .ph-text {
+    font-size: 10px; color: var(--asc-accent); text-align: center; padding: 0 4px;
+  }
   #img-modal .img-grid .img-thumb.selected {
     border-color: var(--asc-send);
     box-shadow: 0 0 0 2px var(--asc-send);
@@ -1761,9 +1793,10 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
       if (sl && sl.prompt) imgPrompt.value = sl.prompt;
     }
 
-    // Render grid
+    // Render grid — preserve in-flight placeholders
+    const pendingEls = [...imgGrid.querySelectorAll('.img-thumb.generating, .img-thumb.gen-error')];
     const images = [...imgSlots.values()].filter(v => v.image_id);
-    if (images.length === 0) {
+    if (images.length === 0 && pendingEls.length === 0) {
       imgGrid.innerHTML = '<div class="empty-grid">还没有图片<br>生成、粘贴或拖放添加</div>';
     } else {
       imgGrid.innerHTML = images.map(img => {
@@ -1775,6 +1808,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
           ${assignedTo ? `<span class="tag ref-tag">${escHtml(assignedTo[0]).slice(0,8)}</span>` : ''}
         </div>`;
       }).join('');
+      pendingEls.forEach(el => imgGrid.appendChild(el));
     }
   }
 
@@ -1786,63 +1820,96 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     refreshImgPanel();
   });
 
-  // Generate (batch)
+  // Generate (non-blocking, with placeholders)
   const imgNSelect = document.getElementById('img-n-select');
-  let generating = false;
-  imgGenBtn.addEventListener('click', async () => {
-    if (generating) return;
+  let batchCounter = 0;
+
+  function insertPlaceholders(n, prompt) {
+    const batchId = ++batchCounter;
+    const ids = [];
+    // Remove empty-grid hint if present
+    const emptyHint = imgGrid.querySelector('.empty-grid');
+    if (emptyHint) emptyHint.remove();
+    for (let i = 0; i < n; i++) {
+      const phId = `ph-${batchId}-${i}`;
+      ids.push(phId);
+      const div = document.createElement('div');
+      div.className = 'img-thumb generating';
+      div.dataset.phid = phId;
+      div.innerHTML = `<div class="ph-spinner"></div><div class="ph-text">${escHtml(truncate(prompt, 30))}</div>`;
+      imgGrid.appendChild(div);
+    }
+    return ids;
+  }
+
+  function resolvePlaceholder(phId, img) {
+    const ph = imgGrid.querySelector(`[data-phid="${CSS.escape(phId)}"]`);
+    if (!ph) return;
+    ph.className = 'img-thumb';
+    ph.dataset.imgid = img.image_id;
+    delete ph.dataset.phid;
+    ph.innerHTML = `<img src="${img.url}" loading="lazy">`;
+    ph.style.cursor = 'pointer';
+  }
+
+  function failPlaceholder(phId, errMsg) {
+    const ph = imgGrid.querySelector(`[data-phid="${CSS.escape(phId)}"]`);
+    if (!ph) return;
+    ph.className = 'img-thumb gen-error';
+    ph.innerHTML = `<div class="ph-text">⚠ ${escHtml(truncate(errMsg, 40))}</div>`;
+  }
+
+  imgGenBtn.addEventListener('click', () => {
     const prompt = imgPrompt.value.trim();
     if (!prompt) return;
     const n = parseInt(imgNSelect.value) || 4;
-    generating = true;
-    imgGenBtn.disabled = true;
-    imgGenBtn.textContent = `生成 ×${n}…`;
-    try {
-      const refIds = [];
-      imgGrid.querySelectorAll('.img-thumb.ref').forEach(el => {
-        refIds.push(el.dataset.imgid);
-      });
-      const r = await fetch(`/api/${SID}/generate`, {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ prompt, n, reference_ids: refIds }),
-      });
-      const d = await r.json();
+    const refIds = [];
+    imgGrid.querySelectorAll('.img-thumb.ref').forEach(el => {
+      if (el.dataset.imgid) refIds.push(el.dataset.imgid);
+    });
+    const phIds = insertPlaceholders(n, prompt);
+    const slotForAutoAssign = activeImgSlot;
+
+    fetch(`/api/${SID}/generate`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ prompt, n, reference_ids: refIds }),
+    })
+    .then(r => r.json())
+    .then(async d => {
       if (d.ok && d.images) {
         let firstId = null;
-        d.images.forEach(img => {
+        d.images.forEach((img, i) => {
           imgSlots.set(img.image_id, { image_id: img.image_id, url: img.url, prompt, source: 'generated', label: '' });
           if (!firstId) firstId = img.image_id;
+          if (phIds[i]) resolvePlaceholder(phIds[i], img);
         });
         // Auto-assign first image if slot has no image yet
         const assignments = imgSlots._assignments || {};
-        if (activeImgSlot && !assignments[activeImgSlot] && firstId) {
-          await assignImage(activeImgSlot, firstId);
+        if (slotForAutoAssign && !assignments[slotForAutoAssign] && firstId) {
+          await assignImage(slotForAutoAssign, firstId);
+          syncImgAiElements();
         }
-        refreshImgPanel();
-        syncImgAiElements();
       } else {
-        alert('生成失败: ' + (d.error || 'unknown'));
+        phIds.forEach(id => failPlaceholder(id, d.error || 'unknown'));
       }
-    } catch(e) { alert('生成失败: ' + e.message); }
-    finally {
-      generating = false;
-      imgGenBtn.disabled = false;
-      imgGenBtn.textContent = '生成';
-    }
+    })
+    .catch(e => {
+      phIds.forEach(id => failPlaceholder(id, e.message));
+    });
   });
 
-  // Click to assign, right-click to mark as reference
+  // Click to assign, right-click to mark as reference (ignore placeholders)
   imgGrid.addEventListener('click', async (e) => {
     const thumb = e.target.closest('.img-thumb');
-    if (!thumb || !activeImgSlot) return;
+    if (!thumb || !thumb.dataset.imgid || !activeImgSlot) return;
     await assignImage(activeImgSlot, thumb.dataset.imgid);
     refreshImgPanel();
     syncImgAiElements();
   });
   imgGrid.addEventListener('contextmenu', (e) => {
     const thumb = e.target.closest('.img-thumb');
-    if (!thumb) return;
+    if (!thumb || !thumb.dataset.imgid) return;
     e.preventDefault();
     thumb.classList.toggle('ref');
   });
