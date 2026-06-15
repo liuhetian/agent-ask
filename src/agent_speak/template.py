@@ -336,6 +336,27 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     outline-offset: -2px;
   }
 
+  #mode-btn {
+    min-width: 100px;
+    justify-content: center;
+  }
+  #mode-btn .indicator {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--asc-muted); flex-shrink: 0;
+  }
+  #mode-btn.on {
+    background: var(--asc-on-surface); color: var(--asc-surface);
+  }
+  #mode-btn.on:hover { background: color-mix(in srgb, var(--asc-on-surface), #ffffff 14%); }
+  #mode-btn.on .indicator {
+    background: var(--asc-surface);
+    animation: pulse-paper 1.6s infinite;
+  }
+  @keyframes pulse-paper {
+    0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--asc-surface) 70%, transparent); }
+    50%      { box-shadow: 0 0 0 5px transparent; }
+  }
+
   /* PREVIEW-SEND — the green primary action */
   #preview-send-btn {
     background: var(--asc-send);
@@ -1000,6 +1021,10 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     </div>
   </div>
   <div class="nb-toolbar">
+    <button id="mode-btn" class="on" type="button" title="批注模式开关">
+      <span class="indicator"></span>
+      <span id="mode-label">批注中</span>
+    </button>
     <button id="img-panel-btn" type="button" title="图片画布" style="display:none">🎨 图片 <span id="img-count">0</span></button>
     <button id="preview-send-btn" type="button" disabled title="预览并发送给 AI">预览并发送</button>
     <button id="help-btn" type="button" title="使用教程" aria-label="帮助">?</button>
@@ -1112,8 +1137,8 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
             <span>页面上任意 input / checkbox / select 自由填,host 自动收集所有值</span>
           </li>
           <li>
-            <strong>批注模式常开</strong>
-            <span>右下角工具栏始终在,鼠标移到元素上即可批注</span>
+            <strong>批注模式默认开</strong>
+            <span>右下角工具栏的"批注"按钮在闪,说明正在嗅探</span>
           </li>
           <li>
             <strong>点元素批注</strong>
@@ -1171,6 +1196,8 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
   const annoCount = document.getElementById('anno-count');
   const editArea = document.getElementById('edit-area');
   const annoList = document.getElementById('anno-list');
+  const modeBtn = document.getElementById('mode-btn');
+  const modeLabel = document.getElementById('mode-label');
   const previewSendBtn = document.getElementById('preview-send-btn');
   const previewModal = document.getElementById('preview-modal');
   const previewBody = document.getElementById('preview-body');
@@ -1280,17 +1307,20 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     });
   }
 
-  // ───── inspect mode (always on, but notebook page hides when a modal is open) ─────
+  // ───── inspect mode ─────
   function setInspecting(v) {
     isInspecting = !!v;
     document.body.classList.toggle('inspecting', isInspecting);
+    modeBtn.classList.toggle('on', isInspecting);
     notebook.classList.toggle('mode-off', !isInspecting);
+    modeLabel.textContent = isInspecting ? '批注中' : '批注';
     if (!isInspecting) {
       hideHighlight();
       editingId = null;
     }
     updatePanel();
   }
+  modeBtn.addEventListener('click', () => setInspecting(!isInspecting));
 
   // ───── hover highlight ─────
   function showHighlight(el) {
@@ -1399,7 +1429,9 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
 
     // list (or empty state)
     if (count === 0) {
-      annoList.innerHTML = '<div class="empty">还没有批注 ✨<br>把鼠标移到页面元素上,<br>点击就能记下一条</div>';
+      annoList.innerHTML = isInspecting
+        ? '<div class="empty">还没有批注 ✨<br>把鼠标移到页面元素上,<br>点击就能记下一条</div>'
+        : '<div class="empty">还没有批注<br>开启"批注"模式,<br>就能在页面上添加</div>';
     } else {
       annoList.innerHTML = [...annotations.entries()].map(([id, a], i) => `
         <div class="item${editingId === id ? ' editing' : ''}" data-id="${escHtml(id)}">
