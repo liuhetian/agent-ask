@@ -312,12 +312,13 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     border-radius: var(--asc-radius);
     box-shadow: var(--asc-shadow);
     font-family: var(--asc-font);
+    overflow: hidden;
   }
   .nb-toolbar > * + * { border-left: 1px solid var(--asc-on-surface); }
   .nb-toolbar button {
     background: transparent;
     border: 0;
-    border-radius: var(--asc-radius);
+    border-radius: 0;
     padding: 10px 17px;
     font-family: inherit;
     font-size: 12px;
@@ -1658,16 +1659,20 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
   tutorialTabs.forEach(tab => {
     tab.addEventListener('click', () => activateTutorialTab(tab.dataset.tab));
   });
+  let tutorialMouseDownTarget = null;
+  tutorialModal.addEventListener('mousedown', (e) => { tutorialMouseDownTarget = e.target; });
   tutorialModal.addEventListener('click', (e) => {
-    if (e.target === tutorialModal) { closeTutorial(); return; }
+    if (e.target === tutorialModal && tutorialMouseDownTarget === tutorialModal) { closeTutorial(); return; }
     const btn = e.target.closest('button');
     if (!btn) return;
     if (btn.classList.contains('t-close') || btn.classList.contains('t-ok')) {
       closeTutorial();
     }
   });
+  let previewMouseDownTarget = null;
+  previewModal.addEventListener('mousedown', (e) => { previewMouseDownTarget = e.target; });
   previewModal.addEventListener('click', (e) => {
-    if (e.target === previewModal) { closePreview(); return; }
+    if (e.target === previewModal && previewMouseDownTarget === previewModal) { closePreview(); return; }
     const btn = e.target.closest('button');
     if (!btn) return;
     if (btn.classList.contains('close') || btn.classList.contains('modal-cancel')) closePreview();
@@ -1711,8 +1716,10 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     else openImgModal(forceAiId);
   }
   imgPanelBtn.addEventListener('click', () => toggleImgPanel());
+  let imgModalMouseDownTarget = null;
+  imgModal.addEventListener('mousedown', (e) => { imgModalMouseDownTarget = e.target; });
   imgModal.addEventListener('click', (e) => {
-    if (e.target === imgModal) closeImgModal();
+    if (e.target === imgModal && imgModalMouseDownTarget === imgModal) closeImgModal();
     const btn = e.target.closest('button');
     if (btn && btn.classList.contains('close')) closeImgModal();
   });
