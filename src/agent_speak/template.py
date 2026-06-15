@@ -6,8 +6,8 @@ Host 的核心职责:
   意义的元素都能被批注;AI 自己写的 data-ai-id 优先保留。
 - DOM Inspector:右下角日记本里的"批注"开关(默认开),开启时悬停 data-ai-id
   节点显示蓝色高亮 + 提示,点击进入编辑;关闭仅停掉嗅探,日记本本身始终在。
-- 日记本:右下角的小本子,始终可见。一条条记录,空也是本子。底部三个动作:
-  模式切换 / 预览要发送的 payload / 直接发送。
+- 日记本:右下角的小本子,始终可见。一条条记录,空也是本子。底部动作:
+  预览并发送(走预览弹窗确认流程)。
 - 元素徽章:每条已保存的批注在元素内部右上角投一个黄色数字徽章
   (放在元素内部以避免靠边时被裁掉),点徽章即可回去编辑。
 - Uncontrolled Form Harvest:扫描 input/textarea/select。
@@ -336,35 +336,18 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     outline-offset: -2px;
   }
 
-  #mode-btn .indicator {
-    width: 8px; height: 8px; border-radius: 50%;
-    background: var(--asc-muted); flex-shrink: 0;
-  }
-  #mode-btn.on {
-    background: var(--asc-on-surface); color: var(--asc-surface);
-  }
-  #mode-btn.on:hover { background: color-mix(in srgb, var(--asc-on-surface), #ffffff 14%); }
-  #mode-btn.on .indicator {
-    background: var(--asc-surface);
-    animation: pulse-paper 1.6s infinite;
-  }
-  @keyframes pulse-paper {
-    0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--asc-surface) 70%, transparent); }
-    50%      { box-shadow: 0 0 0 5px transparent; }
-  }
-
-  /* SEND — the only green in the whole UI, always visible primary action */
-  #send-btn {
+  /* PREVIEW-SEND — the green primary action */
+  #preview-send-btn {
     background: var(--asc-send);
     color: var(--asc-surface);
   }
-  #send-btn:not(:disabled):hover { background: var(--asc-send-2); }
-  #send-btn:disabled {
+  #preview-send-btn:not(:disabled):hover { background: var(--asc-send-2); }
+  #preview-send-btn:disabled {
     background: color-mix(in srgb, var(--asc-on-surface) 12%, transparent);
     color: color-mix(in srgb, var(--asc-on-surface) 32%, transparent);
     cursor: not-allowed;
   }
-  #send-btn:disabled:hover { background: color-mix(in srgb, var(--asc-on-surface) 12%, transparent); }
+  #preview-send-btn:disabled:hover { background: color-mix(in srgb, var(--asc-on-surface) 12%, transparent); }
 
   /* Small help/question-mark — same toolbar family */
   #help-btn {
@@ -857,111 +840,138 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
   img-ai:hover .imgai-badge, img-ai .imgai-badge.visible { opacity: 1; }
   img-ai .imgai-badge:hover { transform: scale(1.1); }
 
-  /* ───── image canvas panel (shares nb-page slot) ───── */
-  .img-panel {
-    width: 380px;
+  /* ───── image canvas modal (full viewport overlay like preview) ───── */
+  #img-modal {
+    position: fixed; inset: 0; z-index: 9500;
+    display: flex; align-items: center; justify-content: center;
+    background: color-mix(in srgb, var(--asc-on-surface) 45%, transparent);
+    backdrop-filter: blur(2px);
+    padding: 24px;
+  }
+  #img-modal.hidden { display: none; }
+  #img-modal .modal-card {
     background: var(--asc-surface);
-    border: 2px solid var(--asc-on-surface);
+    width: min(640px, 100%);
+    max-height: 82vh;
+    border: 3px solid var(--asc-on-surface);
     border-radius: var(--asc-radius);
-    box-shadow: var(--asc-shadow);
-    overflow: hidden;
+    box-shadow: var(--asc-shadow-lg);
     display: flex; flex-direction: column;
-    max-height: 70vh;
+    overflow: hidden;
     color: var(--asc-on-surface);
     font-family: var(--asc-font);
-    transform-origin: bottom right;
-    transition: max-height 280ms ease, opacity 220ms ease, transform 220ms ease;
   }
-  .img-panel.hidden {
-    max-height: 0; opacity: 0; transform: translateY(8px) scale(0.92);
-    pointer-events: none; border-color: transparent; box-shadow: none;
-  }
-  .img-panel-header {
+  #img-modal header {
     display: flex; align-items: center; justify-content: space-between;
-    padding: 10px 14px 8px;
+    padding: 16px 24px 12px;
     border-bottom: 3px double var(--asc-on-surface);
-    user-select: none;
-    font-weight: 900; font-size: 14px;
-    text-transform: uppercase; letter-spacing: 0.06em;
+    font-family: inherit;
+    font-weight: 900;
+    font-size: 18px;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    color: var(--asc-on-surface);
+    background: transparent;
   }
-  .img-panel-header select {
+  #img-modal header .close {
+    border: 0; background: transparent; cursor: pointer;
+    font-family: var(--asc-font);
+    font-size: 26px; color: var(--asc-on-surface); line-height: 1;
+    padding: 0 4px;
+    font-weight: 400;
+  }
+  #img-modal header .close:hover { color: var(--asc-accent); }
+  #img-modal header select {
     border: 1px solid var(--asc-on-surface); border-radius: var(--asc-radius);
     background: var(--asc-field, #fffaf0); color: var(--asc-on-surface);
     padding: 3px 8px; font-size: 11px; font-family: inherit; font-weight: 700;
-    max-width: 160px;
+    max-width: 200px;
   }
-  .img-panel-prompt {
-    display: flex; gap: 6px; padding: 10px 14px;
+  #img-modal .img-prompt-row {
+    display: flex; gap: 8px; padding: 14px 24px;
     border-bottom: 1px solid color-mix(in srgb, var(--asc-on-surface) 18%, transparent);
   }
-  .img-panel-prompt textarea {
-    flex: 1; height: 52px; border: 1px solid var(--asc-on-surface);
-    border-radius: var(--asc-radius); padding: 6px 8px;
-    font-size: 12px; resize: none; font-family: inherit;
+  #img-modal .img-prompt-row textarea {
+    flex: 1; height: 56px; border: 1px solid var(--asc-on-surface);
+    border-radius: var(--asc-radius); padding: 8px 10px;
+    font-size: 13px; resize: none; font-family: inherit;
     color: var(--asc-on-surface); background: var(--asc-field, #fffaf0);
   }
-  .img-panel-prompt textarea:focus { outline: 0; border-color: var(--asc-accent); }
-  .img-panel-prompt button {
-    align-self: flex-end;
-    padding: 6px 14px;
+  #img-modal .img-prompt-row textarea:focus { outline: 0; border-color: var(--asc-accent); }
+  #img-modal .img-prompt-row .gen-controls {
+    display: flex; flex-direction: column; gap: 4px; align-self: flex-end;
+  }
+  #img-modal .img-prompt-row .gen-controls select {
+    border: 1px solid var(--asc-on-surface); border-radius: var(--asc-radius);
+    background: var(--asc-field); color: var(--asc-on-surface);
+    padding: 2px 6px; font-size: 11px; font-family: inherit; font-weight: 700;
+  }
+  #img-modal .img-prompt-row button {
+    padding: 6px 16px;
     background: var(--asc-on-surface); color: var(--asc-surface);
     border: 2px solid var(--asc-on-surface); border-radius: var(--asc-radius);
     font-family: inherit; font-size: 11px; font-weight: 900;
     text-transform: uppercase; letter-spacing: 0.08em; cursor: pointer;
   }
-  .img-panel-prompt button:hover { background: var(--asc-accent); border-color: var(--asc-accent); }
-  .img-panel-prompt button:disabled {
-    opacity: 0.4; cursor: not-allowed;
+  #img-modal .img-prompt-row button:hover { background: var(--asc-accent); border-color: var(--asc-accent); }
+  #img-modal .img-prompt-row button:disabled { opacity: 0.4; cursor: not-allowed; }
+  #img-modal .img-grid {
+    flex: 1; overflow: auto; padding: 14px 24px;
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;
+    min-height: 120px;
   }
-  .img-panel-grid {
-    flex: 1; overflow: auto; padding: 10px;
-    display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px;
-    min-height: 100px;
-  }
-  .img-panel-grid .empty-grid {
+  #img-modal .img-grid .empty-grid {
     grid-column: 1 / -1; text-align: center;
-    color: var(--asc-muted); font-size: 12px; font-style: italic;
-    padding: 20px 0;
+    color: var(--asc-muted); font-size: 13px; font-style: italic;
+    padding: 32px 0;
   }
-  .img-panel-grid .img-thumb {
+  #img-modal .img-grid .img-thumb {
     position: relative; cursor: pointer;
     border: 2px solid transparent; border-radius: var(--asc-radius);
     overflow: hidden; aspect-ratio: 1;
     transition: border-color 120ms;
   }
-  .img-panel-grid .img-thumb img {
+  #img-modal .img-grid .img-thumb img {
     width: 100%; height: 100%; object-fit: cover; display: block;
   }
-  .img-panel-grid .img-thumb.selected {
+  #img-modal .img-grid .img-thumb.selected {
     border-color: var(--asc-send);
     box-shadow: 0 0 0 2px var(--asc-send);
   }
-  .img-panel-grid .img-thumb.ref {
+  #img-modal .img-grid .img-thumb.ref {
     border-color: var(--asc-accent);
     box-shadow: 0 0 0 2px var(--asc-accent);
   }
-  .img-panel-grid .img-thumb .tag {
-    position: absolute; bottom: 2px; left: 2px;
-    font-size: 9px; font-weight: 700; padding: 1px 5px;
+  #img-modal .img-grid .img-thumb .tag {
+    position: absolute; bottom: 3px; left: 3px;
+    font-size: 9px; font-weight: 700; padding: 1px 6px;
     border-radius: 3px; color: white;
   }
-  .img-panel-grid .img-thumb .tag.sel-tag { background: var(--asc-send); }
-  .img-panel-grid .img-thumb .tag.ref-tag { background: var(--asc-accent); }
-  .img-panel-footer {
-    display: flex; gap: 6px; padding: 8px 14px;
-    border-top: 2px solid var(--asc-on-surface);
-    justify-content: space-between; align-items: center;
+  #img-modal .img-grid .img-thumb .tag.sel-tag { background: var(--asc-send); }
+  #img-modal .img-grid .img-thumb .tag.ref-tag { background: var(--asc-accent); }
+  #img-modal footer {
+    display: flex; justify-content: space-between; align-items: center; gap: 8px;
+    padding: 12px 24px;
+    border-top: 3px double var(--asc-on-surface);
+    background: color-mix(in srgb, var(--asc-on-surface) 3%, transparent);
+    font-size: 12px;
+  }
+  #img-modal footer .hint { color: var(--asc-muted); font-style: italic; }
+  #img-modal footer button {
+    border: 2px solid var(--asc-on-surface);
+    border-radius: var(--asc-radius);
+    padding: 6px 18px;
+    font-family: inherit;
     font-size: 11px;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.10em;
+    cursor: pointer;
+    background: var(--asc-send);
+    color: var(--asc-surface);
+    border-color: var(--asc-send);
   }
-  .img-panel-footer .hint { color: var(--asc-muted); font-style: italic; }
-  .img-panel-footer button {
-    padding: 5px 14px;
-    background: var(--asc-send); color: var(--asc-surface);
-    border: 0; border-radius: var(--asc-radius);
-    font-family: inherit; font-size: 11px; font-weight: 900;
-    text-transform: uppercase; letter-spacing: 0.08em; cursor: pointer;
-  }
-  .img-panel-footer button:hover { background: var(--asc-send-2); }
+  #img-modal footer button:hover { background: var(--asc-send-2); border-color: var(--asc-send-2); }
 </style>
 <!-- 壳子主题变量:set_session 选模版时注入对应的 :root{ --asc-* } 覆盖上面的默认值。
      纯 CSS(非 tailwindcss),立即生效、无需等 Tailwind 编译,避免壳子闪一下报纸风。
@@ -989,36 +999,9 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
       <div id="anno-list"></div>
     </div>
   </div>
-  <div class="img-panel hidden" id="img-panel">
-    <div class="img-panel-header">
-      <span>🎨 图片画布</span>
-      <select id="img-slot-select"></select>
-    </div>
-    <div class="img-panel-prompt">
-      <textarea id="img-prompt" placeholder="描述你想要的图片…"></textarea>
-      <div style="display:flex;flex-direction:column;gap:4px;align-self:flex-end">
-        <select id="img-n-select" style="border:1px solid var(--asc-on-surface);border-radius:var(--asc-radius);background:var(--asc-field);color:var(--asc-on-surface);padding:2px 6px;font-size:11px;font-family:inherit;font-weight:700">
-          <option value="1">×1</option><option value="2">×2</option><option value="3">×3</option><option value="4" selected>×4</option>
-        </select>
-        <button id="img-gen-btn" type="button">生成</button>
-      </div>
-    </div>
-    <div class="img-panel-grid" id="img-grid">
-      <div class="empty-grid">还没有图片</div>
-    </div>
-    <div class="img-panel-footer">
-      <span class="hint">左键选定 · 右键设为参考</span>
-      <button id="img-use-btn" type="button">✓ 使用选中</button>
-    </div>
-  </div>
   <div class="nb-toolbar">
-    <button id="mode-btn" class="on" type="button" title="批注模式开关">
-      <span class="indicator"></span>
-      <span id="mode-label">批注中</span>
-    </button>
     <button id="img-panel-btn" type="button" title="图片画布" style="display:none">🎨 图片 <span id="img-count">0</span></button>
-    <button id="preview-btn" type="button" title="预览发送内容">预览</button>
-    <button id="send-btn" type="button" disabled title="发送给 AI">发送</button>
+    <button id="preview-send-btn" type="button" disabled title="预览并发送给 AI">预览并发送</button>
     <button id="help-btn" type="button" title="使用教程" aria-label="帮助">?</button>
   </div>
 </div>
@@ -1032,6 +1015,33 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     <footer>
       <button class="modal-cancel" type="button">关闭</button>
       <button class="modal-send" type="button">确认发送</button>
+    </footer>
+  </div>
+</div>
+<div id="img-modal" class="hidden">
+  <div class="modal-card">
+    <header>
+      <span>🎨 图片画布</span>
+      <div style="display:flex;align-items:center;gap:10px">
+        <select id="img-slot-select"></select>
+        <button class="close" type="button">×</button>
+      </div>
+    </header>
+    <div class="img-prompt-row">
+      <textarea id="img-prompt" placeholder="描述你想要的图片…"></textarea>
+      <div class="gen-controls">
+        <select id="img-n-select">
+          <option value="1">×1</option><option value="2">×2</option><option value="3">×3</option><option value="4" selected>×4</option>
+        </select>
+        <button id="img-gen-btn" type="button">生成</button>
+      </div>
+    </div>
+    <div class="img-grid" id="img-grid">
+      <div class="empty-grid">还没有图片<br>生成、粘贴或拖放添加</div>
+    </div>
+    <footer>
+      <span class="hint">左键选定 · 右键设为参考</span>
+      <button id="img-use-btn" type="button">✓ 使用选中</button>
     </footer>
   </div>
 </div>
@@ -1102,16 +1112,16 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
             <span>页面上任意 input / checkbox / select 自由填,host 自动收集所有值</span>
           </li>
           <li>
-            <strong>批注模式默认开</strong>
-            <span>右下角药丸的"批注"按钮在闪,说明正在嗅探</span>
+            <strong>批注模式常开</strong>
+            <span>右下角工具栏始终在,鼠标移到元素上即可批注</span>
           </li>
           <li>
             <strong>点元素批注</strong>
             <span>鼠标停在元素上 → 蓝框出现 → 点击 → 在便签里写"这块改成…"</span>
           </li>
           <li>
-            <strong>预览 然后发送</strong>
-            <span>点"预览"对照内容,确认后点"发送"——绿色按钮,最显眼那个</span>
+            <strong>预览并发送</strong>
+            <span>点"预览并发送"——绿色按钮,对照内容后确认发送</span>
           </li>
         </ol>
       </section>
@@ -1161,15 +1171,13 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
   const annoCount = document.getElementById('anno-count');
   const editArea = document.getElementById('edit-area');
   const annoList = document.getElementById('anno-list');
-  const modeBtn = document.getElementById('mode-btn');
-  const modeLabel = document.getElementById('mode-label');
-  const previewBtn = document.getElementById('preview-btn');
-  const sendBtn = document.getElementById('send-btn');
+  const previewSendBtn = document.getElementById('preview-send-btn');
   const previewModal = document.getElementById('preview-modal');
   const previewBody = document.getElementById('preview-body');
   const submitOverlay = document.getElementById('submit-overlay');
   const tutorialModal = document.getElementById('tutorial-modal');
   const helpBtn = document.getElementById('help-btn');
+  const imgModal = document.getElementById('img-modal');
 
   const TUTORIAL_SEEN_KEY = 'agent-speak.tutorial.seen.v1';
   let firstArtifactSeen = false;
@@ -1177,11 +1185,10 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
   /** ai_id -> {instruction, html_hint} (insertion-order = display order) */
   const annotations = new Map();
   let hasArtifact = false;
-  let isInspecting = true;   // 默认打开
+  let isInspecting = true;   // 批注模式常开
   let editingId = null;
 
   // ───── img-ai state ─────
-  const imgPanel = document.getElementById('img-panel');
   const imgPanelBtn = document.getElementById('img-panel-btn');
   const imgCount = document.getElementById('img-count');
   const imgSlotSelect = document.getElementById('img-slot-select');
@@ -1261,12 +1268,8 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
   }
 
   function updateSendBtn() {
-    const formCount = container.querySelectorAll('input, textarea, select').length;
-    const total = annotations.size + formCount;
-    sendBtn.disabled = !hasArtifact;
-    // surface useful count in the title attribute
-    sendBtn.title = hasArtifact ? `发送 ${total} 项内容给 AI` : '等待 artifact';
-    previewBtn.disabled = !hasArtifact;
+    previewSendBtn.disabled = !hasArtifact;
+    previewSendBtn.title = hasArtifact ? '预览并发送给 AI' : '等待 artifact';
   }
 
   function refreshAnnotationOutlines() {
@@ -1277,20 +1280,17 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     });
   }
 
-  // ───── inspect mode ─────
+  // ───── inspect mode (always on, but notebook page hides when a modal is open) ─────
   function setInspecting(v) {
     isInspecting = !!v;
     document.body.classList.toggle('inspecting', isInspecting);
-    modeBtn.classList.toggle('on', isInspecting);
     notebook.classList.toggle('mode-off', !isInspecting);
-    modeLabel.textContent = isInspecting ? '批注中' : '批注';
     if (!isInspecting) {
       hideHighlight();
       editingId = null;
     }
     updatePanel();
   }
-  modeBtn.addEventListener('click', () => setInspecting(!isInspecting));
 
   // ───── hover highlight ─────
   function showHighlight(el) {
@@ -1399,9 +1399,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
 
     // list (or empty state)
     if (count === 0) {
-      annoList.innerHTML = isInspecting
-        ? '<div class="empty">还没有批注 ✨<br>把鼠标移到页面元素上,<br>点击就能记下一条</div>'
-        : '<div class="empty">还没有批注<br>开启上方"批注"模式,<br>就能在页面上添加</div>';
+      annoList.innerHTML = '<div class="empty">还没有批注 ✨<br>把鼠标移到页面元素上,<br>点击就能记下一条</div>';
     } else {
       annoList.innerHTML = [...annotations.entries()].map(([id, a], i) => `
         <div class="item${editingId === id ? ' editing' : ''}" data-id="${escHtml(id)}">
@@ -1459,8 +1457,8 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     if (e.key === 'Escape') {
       if (!tutorialModal.classList.contains('hidden')) { closeTutorial(); return; }
       if (!previewModal.classList.contains('hidden')) { closePreview(); return; }
+      if (!imgModal.classList.contains('hidden')) { closeImgModal(); return; }
       if (editingId) { editingId = null; updatePanel(); }
-      else if (isInspecting) setInspecting(false);
     }
   });
 
@@ -1547,6 +1545,8 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
   // ───── preview modal ─────
   function openPreview() {
     if (!hasArtifact) return;
+    closeImgModal();
+    setInspecting(false);
     const payload = buildPayload();
     const comments = payload.user_comments;
     const forms = payload.user_form_inputs;
@@ -1593,9 +1593,12 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     previewBody.innerHTML = html;
     previewModal.classList.remove('hidden');
   }
-  function closePreview() { previewModal.classList.add('hidden'); }
+  function closePreview() {
+    previewModal.classList.add('hidden');
+    setInspecting(true);
+  }
 
-  previewBtn.addEventListener('click', openPreview);
+  previewSendBtn.addEventListener('click', openPreview);
 
   // ───── tutorial modal ─────
   const tutorialTabs = tutorialModal.querySelectorAll('.t-tab');
@@ -1644,8 +1647,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     if (!hasArtifact) return;
     const payload = buildPayload();
     container.dataset.frozen = 'true';
-    sendBtn.disabled = true;
-    previewBtn.disabled = true;
+    previewSendBtn.disabled = true;
     setInspecting(false);
     try {
       await fetch(`/ui/${SID}/submit`, {
@@ -1658,20 +1660,30 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
       console.error('submit failed', err);
     }
   }
-  sendBtn.addEventListener('click', doSubmit);
 
   // ───── img-ai: shared canvas logic ─────
-  function toggleImgPanel(forceAiId) {
+  function openImgModal(forceAiId) {
     if (forceAiId) activeImgSlot = forceAiId;
-    imgPanelOpen = !imgPanelOpen || !!forceAiId;
-    imgPanel.classList.toggle('hidden', !imgPanelOpen);
-    if (imgPanelOpen) {
-      // Close annotation panel when image panel opens
-      if (isInspecting) setInspecting(false);
-      refreshImgPanel();
-    }
+    imgPanelOpen = true;
+    setInspecting(false);
+    imgModal.classList.remove('hidden');
+    refreshImgPanel();
+  }
+  function closeImgModal() {
+    imgPanelOpen = false;
+    imgModal.classList.add('hidden');
+    setInspecting(true);
+  }
+  function toggleImgPanel(forceAiId) {
+    if (imgPanelOpen && !forceAiId) closeImgModal();
+    else openImgModal(forceAiId);
   }
   imgPanelBtn.addEventListener('click', () => toggleImgPanel());
+  imgModal.addEventListener('click', (e) => {
+    if (e.target === imgModal) closeImgModal();
+    const btn = e.target.closest('button');
+    if (btn && btn.classList.contains('close')) closeImgModal();
+  });
 
   function getImgAiSlots() {
     return [...container.querySelectorAll('img-ai')].map(el => ({
@@ -1811,8 +1823,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
   // "Use selected" button
   imgUseBtn.addEventListener('click', () => {
     syncImgAiElements();
-    imgPanelOpen = false;
-    imgPanel.classList.add('hidden');
+    closeImgModal();
   });
 
   // Sync img-ai elements with assignments
@@ -1873,8 +1884,8 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     }
   });
 
-  imgPanel.addEventListener('dragover', (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; });
-  imgPanel.addEventListener('drop', async (e) => {
+  imgModal.addEventListener('dragover', (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; });
+  imgModal.addEventListener('drop', async (e) => {
     e.preventDefault();
     for (const file of e.dataTransfer.files) {
       if (file.type.startsWith('image/')) {
