@@ -2612,25 +2612,55 @@ _EDITORIAL_TIPS = (
     "确保窄屏能自然单列阅读。"
 )
 
+# 自定义 CSS 的样式继承规则——跟在模版引导 + 编排建议之后,确保客户端写自定义类
+# 时不会引入跟当前模版不搭的圆角、颜色。
+_CSS_DISCIPLINE = (
+    "【自定义 CSS 纪律】写 set_session(css=...) 注册新类时,必须与当前模版视觉统一:\n"
+    "1. 圆角:沿用 preset_css 里已有的 rounded-* 值(如模版用 rounded-none 就全部直角,"
+    "用 rounded-xl 就统一大圆角),不要在同一页面混用不同圆角策略。\n"
+    "2. 配色:只用下面列出的模版色盘,不要引入色盘之外的颜色。背景/文字/边框/强调色"
+    "都从色盘取值,保持整体和谐。\n"
+    "3. 阴影与边框:复用 preset_css 里的 shadow-* 和 border-* 风格,不要自行发明新的"
+    "阴影或边框样式。\n"
+    "4. 字体:不要覆盖 font-family,模版已设好衬线/无衬线策略。\n"
+    "做法:先读 set_session 返回的 preset_css,从中提取圆角、配色、阴影规则,逐条对齐。"
+    "能用 ass-* 预设类实现的版式就不要手写 Tailwind 工具类。"
+)
+
 TEMPLATE_GUIDES: dict[str, str] = {
     "报纸": "复古报纸 / 海报风(粗双线分隔、衬线大标题、暗红点缀)。最适合长材料审核"
             "——大纲、提案、汇报稿。主标题可大胆放大,用 ass-divider 的粗线切分大章节,"
-            "营造版面感。",
+            "营造版面感。\n"
+            "色盘:底色 #e9e0ca / 面板 #f4ecd8 / 主墨 #1a1a1a / 强调暗红 #8b1e1e / "
+            "次灰 #6b6b6b / 输入底 #fffaf0。圆角策略:rounded-none(全部直角)。"
+            "阴影:硬偏移 shadow-[4px_4px_0_#1a1a1a]。边框:粗实线 border-2 border-[#1a1a1a]。",
     "极简白": "现代 SaaS 风(纯白、细灰边、克制蓝)。最适合表单、设置、确认这类功能性界面。"
-              "靠留白和层级说话,别堆装饰;辅助说明交给 ass-hint;尽量一屏一个焦点。",
+              "靠留白和层级说话,别堆装饰;辅助说明交给 ass-hint;尽量一屏一个焦点。\n"
+              "色盘:底色 #fafafa / 面板白 #ffffff / 文字 slate-700~900 / 强调蓝 blue-600 / "
+              "边框 slate-200~300。圆角策略:rounded-xl(大圆角)~rounded-lg。"
+              "阴影:柔和 shadow-sm。边框:细灰 border border-slate-200。",
     "暗夜霓虹": "深色霓虹风(暗底、青 / 品红发光)。适合技术、数据、代码、监控类内容。"
-                "冷色克制,靠 accent 点睛而非铺满;代码用 ass-code;信息密度可偏高,但务必分组。",
+                "冷色克制,靠 accent 点睛而非铺满;代码用 ass-code;信息密度可偏高,但务必分组。\n"
+                "色盘:底色 #0a0e14 / 面板 #111827 / 文字 slate-200 / 强调青 cyan-400~500 / "
+                "副强调品红 fuchsia-300~600 / 边框 cyan-500/30。圆角策略:rounded-xl(大圆角)~rounded-lg。"
+                "阴影:发光 shadow-[0_0_24px_rgba(34,211,238,0.10)]。边框:半透明霓虹 border-cyan-500/30。",
     "柔和糖果": "圆角粉调、亲和风。适合轻量问卷、上手向导、面向非技术用户的交互。"
-                "语气友好,圆角与留白让人放松;一次别问太多;多用 ass-hint 解释字段。",
+                "语气友好,圆角与留白让人放松;一次别问太多;多用 ass-hint 解释字段。\n"
+                "色盘:底色 #fbf0f7 / 面板白 #ffffff / 文字 slate-600~700 / 强调粉 pink-500~600 / "
+                "副紫 purple-500 / 边框 pink-100~200。圆角策略:rounded-3xl~rounded-2xl(超大圆角/胶囊)。"
+                "阴影:粉色辉光 shadow-[0_8px_28px_rgba(236,72,153,0.10)]。边框:淡粉 border-pink-100。",
     "杂志大刊": "大字号橙调编辑风(强对比、硬朗无圆角)。适合观点、特辑、重点推荐。"
-                "用大标题 + hero 制造冲击;栏目少而精;让一个核心主张占据视觉中心。",
+                "用大标题 + hero 制造冲击;栏目少而精;让一个核心主张占据视觉中心。\n"
+                "色盘:底色白 #ffffff / 面板白 #ffffff / 主墨 neutral-900 / 强调橙 orange-600 / "
+                "次灰 neutral-500。圆角策略:rounded-none(全部直角)。"
+                "阴影:无或硬偏移。边框:粗黑 border border-neutral-900,输入用下划线 border-b-2。",
 }
 
 
 def template_guide(name: str | None) -> str:
-    """取某套模版的排版引导(皮肤气质 + 通用编排思路);未知/空名回退默认模版。"""
+    """取某套模版的排版引导(皮肤气质 + 色盘 + 编排思路 + CSS 纪律);未知/空名回退默认模版。"""
     base = TEMPLATE_GUIDES.get(name or "", TEMPLATE_GUIDES[DEFAULT_TEMPLATE])
-    return base + "\n" + _EDITORIAL_TIPS
+    return base + "\n" + _EDITORIAL_TIPS + "\n" + _CSS_DISCIPLINE
 
 
 # ───── 壳子主题(host chrome themes)─────
