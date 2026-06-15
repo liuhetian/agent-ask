@@ -31,7 +31,7 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     p.add_argument("--log-level", default="warning")
     p.add_argument("--openai-api-key", default=None, help="OpenAI API key (or env OPENAI_API_KEY)")
     p.add_argument("--openai-base-url", default=None, help="OpenAI base URL (or env OPENAI_BASE_URL)")
-    p.add_argument("--openai-image-model", default=None, help="image model name (default gpt-image-1)")
+    p.add_argument("--openai-image-model", default=None, help="image model name (default gpt-image-2)")
     return p
 
 

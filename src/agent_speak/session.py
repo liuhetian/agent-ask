@@ -19,7 +19,7 @@ class Config:
     # OpenAI 兼容图片生成 API
     openai_api_key: str | None = None
     openai_base_url: str | None = None
-    openai_image_model: str = "gpt-image-1"
+    openai_image_model: str = "gpt-image-2"
 
 
 CONFIG = Config()
