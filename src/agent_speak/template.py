@@ -306,7 +306,8 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
 
   /* Newspaper-stamp toolbar: solid block with hard offset shadow */
   .nb-toolbar {
-    display: inline-flex; align-items: stretch;
+    display: flex; align-items: stretch;
+    width: 320px;
     background: var(--asc-surface);
     border: 2px solid var(--asc-on-surface);
     border-radius: var(--asc-radius);
@@ -358,8 +359,9 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     50%      { box-shadow: 0 0 0 5px transparent; }
   }
 
-  /* PREVIEW-SEND — the green primary action */
+  /* PREVIEW-SEND — the green primary action, fills remaining space */
   #preview-send-btn {
+    flex: 1;
     background: var(--asc-send);
     color: var(--asc-surface);
   }
