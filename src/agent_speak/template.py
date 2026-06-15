@@ -839,6 +839,10 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
   }
   img-ai img {
     display: block; width: 100%; height: auto;
+    max-width: 512px; max-height: 512px;
+    object-fit: contain;
+    margin: 0 auto;
+    cursor: zoom-in;
   }
   img-ai .imgai-placeholder {
     display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -863,6 +867,78 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
   }
   img-ai:hover .imgai-badge, img-ai .imgai-badge.visible { opacity: 1; }
   img-ai .imgai-badge:hover { transform: scale(1.1); }
+
+  /* ───── image lightbox (click-to-zoom overlay) ───── */
+  #img-lightbox {
+    position: fixed; inset: 0; z-index: 9800;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(0,0,0,0.82);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    cursor: zoom-out;
+    padding: 24px;
+  }
+  #img-lightbox.hidden { display: none; }
+  #img-lightbox img {
+    max-width: 90vw; max-height: 90vh;
+    object-fit: contain;
+    border-radius: 4px;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.5);
+  }
+  #img-lightbox .lb-close {
+    position: absolute; top: 16px; right: 20px;
+    background: transparent; border: 0; cursor: pointer;
+    font-size: 32px; color: #fff; line-height: 1;
+    text-shadow: 0 2px 8px rgba(0,0,0,0.6);
+  }
+  #img-lightbox .lb-close:hover { color: var(--asc-accent, #ec4899); }
+
+  /* ───── disabled image button in toolbar ───── */
+  #img-panel-btn.disabled {
+    opacity: 0.38;
+    cursor: not-allowed;
+  }
+  #img-panel-btn.disabled:hover {
+    background: transparent;
+  }
+
+  /* ───── image hint toast ───── */
+  #img-hint-toast {
+    position: fixed;
+    bottom: 80px; right: 16px;
+    z-index: 9300;
+    background: var(--asc-surface);
+    border: 2px solid var(--asc-on-surface);
+    border-radius: var(--asc-radius);
+    box-shadow: var(--asc-shadow);
+    padding: 14px 18px;
+    max-width: 340px;
+    font-family: var(--asc-font);
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--asc-on-surface);
+    opacity: 0; pointer-events: none;
+    transform: translateY(8px);
+    transition: opacity 220ms, transform 220ms;
+  }
+  #img-hint-toast.visible {
+    opacity: 1; pointer-events: auto;
+    transform: translateY(0);
+  }
+  #img-hint-toast .toast-title {
+    font-weight: 900; font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--asc-accent);
+    margin-bottom: 6px;
+  }
+  #img-hint-toast code {
+    font-family: ui-monospace, SFMono-Regular, monospace;
+    font-size: 11px;
+    background: color-mix(in srgb, var(--asc-on-surface) 8%, transparent);
+    padding: 1px 5px;
+    border-radius: 2px;
+  }
 
   /* ───── image canvas modal (full viewport overlay like preview) ───── */
   #img-modal {
@@ -1060,7 +1136,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
       <span class="indicator"></span>
       <span id="mode-label">批注中</span>
     </button>
-    <button id="img-panel-btn" type="button" title="图片画布" style="display:none">🎨 图片 <span id="img-count">0</span></button>
+    <button id="img-panel-btn" class="disabled" type="button" title="图片画布">🎨 图片 <span id="img-count">0</span></button>
     <button id="preview-send-btn" type="button" disabled title="预览并发送给 AI">预览并发送</button>
     <button id="help-btn" type="button" title="使用教程" aria-label="帮助">?</button>
   </div>
@@ -1218,6 +1294,16 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     关闭后,AI 将无法继续与你交互。
   </div>
 </div>
+<div id="img-lightbox" class="hidden">
+  <button class="lb-close" type="button" aria-label="关闭">×</button>
+  <img src="" alt="">
+</div>
+<div id="img-hint-toast">
+  <div class="toast-title">如何添加图片</div>
+  在对话中告诉 AI：<br>
+  <code>请在 HTML 中使用 &lt;img-ai&gt; 标签添加图片占位</code><br>
+  AI 会在文档中插入图片槽位，届时可在此生成或上传图片。
+</div>
 <div id="status"></div>
 
 <script>
@@ -1240,6 +1326,8 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
   const tutorialModal = document.getElementById('tutorial-modal');
   const helpBtn = document.getElementById('help-btn');
   const imgModal = document.getElementById('img-modal');
+  const imgLightbox = document.getElementById('img-lightbox');
+  const imgHintToast = document.getElementById('img-hint-toast');
 
   const TUTORIAL_SEEN_KEY = 'agent-speak.tutorial.seen.v1';
   let firstArtifactSeen = false;
@@ -1522,6 +1610,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
 
   window.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
+      if (!imgLightbox.classList.contains('hidden')) { closeLightbox(); return; }
       if (!tutorialModal.classList.contains('hidden')) { closeTutorial(); return; }
       if (!previewModal.classList.contains('hidden')) { closePreview(); return; }
       if (!imgModal.classList.contains('hidden')) { closeImgModal(); return; }
@@ -1749,7 +1838,10 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     if (imgPanelOpen && !forceAiId) closeImgModal();
     else openImgModal(forceAiId);
   }
-  imgPanelBtn.addEventListener('click', () => toggleImgPanel());
+  imgPanelBtn.addEventListener('click', () => {
+    if (imgPanelBtn.classList.contains('disabled')) { showImgHint(); return; }
+    toggleImgPanel();
+  });
   let imgModalMouseDownTarget = null;
   imgModal.addEventListener('mousedown', (e) => { imgModalMouseDownTarget = e.target; });
   imgModal.addEventListener('click', (e) => {
@@ -2031,7 +2123,8 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
   function initImgAi() {
     const slots = getImgAiSlots();
     const count = slots.length;
-    imgPanelBtn.style.display = count > 0 ? '' : 'none';
+    imgPanelBtn.style.display = '';
+    imgPanelBtn.classList.toggle('disabled', count === 0);
     imgCount.textContent = String(count);
 
     if (count > 0) {
@@ -2101,6 +2194,35 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
         `<div style="color:var(--asc-accent)">⚠ 生成失败</div><div style="font-size:11px">${escHtml(e.message)}</div>`;
     }
   }
+
+  // ───── image lightbox (click-to-zoom) ─────
+  function openLightbox(src) {
+    imgLightbox.querySelector('img').src = src;
+    imgLightbox.classList.remove('hidden');
+  }
+  function closeLightbox() {
+    imgLightbox.classList.add('hidden');
+    imgLightbox.querySelector('img').src = '';
+  }
+  imgLightbox.addEventListener('click', (e) => {
+    if (e.target === imgLightbox || e.target.classList.contains('lb-close')) closeLightbox();
+  });
+  container.addEventListener('click', (e) => {
+    const img = e.target.closest('img-ai img');
+    if (img && img.src) { e.stopPropagation(); openLightbox(img.src); }
+  });
+
+  // ───── image hint toast ─────
+  let hintToastTimer = null;
+  function showImgHint() {
+    imgHintToast.classList.add('visible');
+    clearTimeout(hintToastTimer);
+    hintToastTimer = setTimeout(() => imgHintToast.classList.remove('visible'), 5000);
+  }
+  imgHintToast.addEventListener('click', () => {
+    imgHintToast.classList.remove('visible');
+    clearTimeout(hintToastTimer);
+  });
 
   // ───── SSE wire ─────
   function reportError(kind, err) {
