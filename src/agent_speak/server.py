@@ -67,6 +67,7 @@ async def _push_styles(state) -> None:
         "preset_css": template_css(state.template),
         "session_css": compose_styles_css(state.styles),
         "chrome_css": chrome_vars_css(state.template),
+        "template": state.template,
     })
 
 
@@ -141,12 +142,23 @@ HTML_CONTRACT = """`html` 写法契约:
   你只管把 `<input>`/`<select>`/`<textarea>` 和它们的 `<label>`、`data-ai-id` 写好。
 - 每个有意义的元素加一个稳定的 `data-ai-id="kebab-case-id"`,host 靠它寻址/批注/回传。
 - 每个表单输入配一个 `<label>`(包裹或 `for=`),host 会把标签和值一起回传。
+- 代码块:用标准 `<pre><code class="language-xxx">` 写法,host 自动语法高亮(highlight.js),
+  不需要手动上色。行内代码用 `<code class="ass-code">`。示例:
+    <pre><code class="language-python">def hello():
+        print("world")</code></pre>
+- Mermaid 图表:用 `<pre class="mermaid">` 写法,host 按需加载 Mermaid.js 并自动渲染为
+  SVG。支持 flowchart / sequence / gantt / classDiagram / stateDiagram / pie / mindmap 等。
+  示例:
+    <pre class="mermaid">graph TD
+      A[开始] --> B{条件}
+      B -->|是| C[结果1]
+      B -->|否| D[结果2]</pre>
 - 每次 render 都会**替换**上一份 artifact,清空批注和表单状态。用户提交后页面**故意不关**,
   供下一份 artifact 复用同一 tab。
 - `<img-ai>` 图片元素（host 接管生成、显示、编辑,AI 只写声明）:
   属性:
     data-ai-id  — 必填。稳定标识,跨 render 保留已选图片。
-    prompt      — 生图提示词。有 prompt 时 host **自动生成**并在占位区显示加载动画。
+    prompt      — 生图提示词,**语言与报告正文保持一致**(中文报告写中文 prompt)。有 prompt 时 host **自动生成**并在占位区显示加载动画。
     image-id    — 预上传图片 ID（通过 upload_url 上传后拿到的）。有此属性时**直接显示**,
                   不触发生成。适用于用户已有素材、或外部工具已生成好图片的场景。
     placeholder — 占位文字。无 prompt 也无 image-id 时显示虚线框 + 此文字,
@@ -313,6 +325,7 @@ async def render_artifact(
         "sid": sid,
         "url": _url(sid),
         "connected": connected,
+        "template": state.template,
         **_finalize(state),
     }
 
@@ -330,7 +343,7 @@ async def wait_user_feedback(
         )
 
     if state.submit_event.is_set():
-        return _finalize(state)
+        return {"template": state.template, **_finalize(state)}
 
     # 始终阻塞等用户提交,上限 3 分钟;超时抛 ToolError(不是故障,可再调一次接着等)。
     wait = max(1, min(int(max_wait_seconds), 180))
@@ -343,6 +356,6 @@ async def wait_user_feedback(
             f"想继续等就再调一次 wait_user_feedback。"
             f"(URL 仅供参考,不需要重发:{_url(sid)})"
         )
-    return _finalize(state)
+    return {"template": state.template, **_finalize(state)}
 
 

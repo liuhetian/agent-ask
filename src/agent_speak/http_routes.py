@@ -11,7 +11,14 @@ from starlette.responses import HTMLResponse, JSONResponse, Response, StreamingR
 from starlette.routing import Route
 
 from .session import CONFIG, SESSIONS, PoolImage, SSEClient, get_or_create
-from .template import chrome_vars_css, compose_styles_css, render_html, template_css
+from .template import (
+    TEMPLATES,
+    chrome_vars_css,
+    compose_styles_css,
+    export_html,
+    render_html,
+    template_css,
+)
 
 
 logger = logging.getLogger("agent_speak.http")
@@ -26,7 +33,8 @@ async def ui_root(request: Request) -> HTMLResponse:
     preset_css = template_css(name)
     session_css = compose_styles_css(state.styles) if state else ""
     chrome_css = chrome_vars_css(name)
-    return HTMLResponse(render_html(sid, preset_css, session_css, chrome_css))
+    tpl_name = state.template if state else ""
+    return HTMLResponse(render_html(sid, preset_css, session_css, chrome_css, tpl_name))
 
 
 async def ui_events(request: Request) -> StreamingResponse:
@@ -94,6 +102,49 @@ async def ui_submit(request: Request) -> JSONResponse:
     state.error = None
     state.submit_event.set()
     return JSONResponse({"ok": True})
+
+
+async def ui_switch_template(request: Request) -> JSONResponse:
+    sid = request.path_params["sid"]
+    state = SESSIONS.get(sid)
+    if state is None:
+        return JSONResponse({"ok": False, "error": "unknown session"}, status_code=404)
+    try:
+        body = await request.json()
+    except json.JSONDecodeError:
+        return JSONResponse({"ok": False, "error": "invalid json"}, status_code=400)
+    name = body.get("template", "")
+    if name not in TEMPLATES:
+        return JSONResponse({"ok": False, "error": f"unknown template: {name}"}, status_code=400)
+    state.template = name
+    if state.sse_writer is not None:
+        await state.sse_writer.send("styles", {
+            "preset_css": template_css(name),
+            "session_css": compose_styles_css(state.styles),
+            "chrome_css": chrome_vars_css(name),
+            "template": name,
+        })
+    return JSONResponse({"ok": True, "template": name})
+
+
+async def ui_export(request: Request) -> Response:
+    sid = request.path_params["sid"]
+    state = SESSIONS.get(sid)
+    if state is None:
+        return Response("session not found", status_code=404)
+    if not state.artifact_html:
+        return Response("no artifact to export", status_code=404)
+    html = export_html(
+        html=state.artifact_html,
+        preset_css=template_css(state.template),
+        session_css=compose_styles_css(state.styles),
+        template_name=state.template,
+    )
+    return Response(
+        content=html,
+        media_type="text/html",
+        headers={"Content-Disposition": f'attachment; filename="agent-speak-export.html"'},
+    )
 
 
 async def ui_error(request: Request) -> JSONResponse:
@@ -338,6 +389,8 @@ ROUTES: list[Route] = [
     Route("/ui/{sid}", ui_root, methods=["GET"]),
     Route("/ui/{sid}/events", ui_events, methods=["GET"]),
     Route("/ui/{sid}/submit", ui_submit, methods=["POST"]),
+    Route("/ui/{sid}/switch-template", ui_switch_template, methods=["POST"]),
+    Route("/ui/{sid}/export", ui_export, methods=["GET"]),
     Route("/ui/{sid}/error", ui_error, methods=["POST"]),
     Route("/api/{sid}/generate", api_image_generate, methods=["POST"]),
     Route("/api/{sid}/upload", api_image_upload, methods=["POST"]),

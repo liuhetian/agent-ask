@@ -27,6 +27,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>agent-speak</title>
 <script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
 <style>
   /* ───── host 壳子(右下角工具栏 / 日记本 / 弹窗 / 遮罩)的主题 token ─────
      这里是默认值(报纸风)。set_session 选模版时,#ass-chrome-vars 槽会注入
@@ -450,7 +451,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
   /* Tab strip — 3 equal cells, active = knockout */
   #tutorial-modal .t-tabs {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(4, 1fr);
     border-bottom: 3px solid var(--asc-on-surface);
     background: var(--asc-surface);
   }
@@ -641,6 +642,38 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
   #tutorial-modal .t-ok:hover {
     background: var(--asc-accent);
     border-color: var(--asc-accent);
+  }
+
+  /* Settings pane */
+  #tutorial-modal .t-settings { padding-top: 4px; }
+  #tutorial-modal .t-setting-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 0;
+    border-bottom: 1px solid color-mix(in srgb, var(--asc-on-surface) 18%, transparent);
+  }
+  #tutorial-modal .t-setting-row:last-child { border-bottom: 0; }
+  #tutorial-modal .t-setting-row label {
+    font-weight: 700; font-size: 14px;
+  }
+  #tutorial-modal .t-setting-row select {
+    border: 1px solid var(--asc-on-surface); border-radius: var(--asc-radius);
+    background: var(--asc-field); color: var(--asc-on-surface);
+    padding: 5px 10px; font-size: 13px; font-family: inherit; font-weight: 700;
+  }
+  #tutorial-modal .t-export-btn {
+    background: var(--asc-on-surface); color: var(--asc-surface);
+    border: 2px solid var(--asc-on-surface); border-radius: var(--asc-radius);
+    padding: 5px 14px; font-family: inherit; font-size: 12px; font-weight: 900;
+    text-transform: uppercase; letter-spacing: 0.08em; cursor: pointer;
+  }
+  #tutorial-modal .t-export-btn:hover {
+    background: var(--asc-accent); border-color: var(--asc-accent);
+  }
+  #tutorial-modal .t-export-btn:disabled {
+    opacity: 0.4; cursor: not-allowed;
+  }
+  #tutorial-modal .t-export-btn:disabled:hover {
+    background: var(--asc-on-surface); border-color: var(--asc-on-surface);
   }
 
   /* ───── preview modal — same vintage palette ───── */
@@ -1204,6 +1237,10 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
         <span class="t-tab-num">03</span>
         <span class="t-tab-label">发送之后</span>
       </button>
+      <button class="t-tab" data-tab="settings" type="button">
+        <span class="t-tab-num">04</span>
+        <span class="t-tab-label">设置</span>
+      </button>
     </div>
 
     <div class="t-body">
@@ -1279,6 +1316,26 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
           想再读一遍?点右下角药丸里的 <strong>?</strong>。
         </p>
       </section>
+
+      <section class="t-pane" data-pane="settings">
+        <div class="t-pane-grid">
+          <div class="t-numblock">04</div>
+          <div class="t-pane-content">
+            <span class="t-tag">Preferences</span>
+            <h4>模版与导出</h4>
+          </div>
+        </div>
+        <div class="t-settings">
+          <div class="t-setting-row">
+            <label>页面模版</label>
+            <select id="tpl-select"></select>
+          </div>
+          <div class="t-setting-row">
+            <label>保存为独立 HTML</label>
+            <button class="t-export-btn" id="export-btn" type="button" disabled>下载</button>
+          </div>
+        </div>
+      </section>
     </div>
 
     <div class="t-foot">
@@ -1309,6 +1366,8 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
 <script>
 (function(){
   const SID = "__SID__";
+  const ASS_TEMPLATES = __TEMPLATE_LIST__;
+  let assCurrentTemplate = "__CURRENT_TEMPLATE__";
   const container = document.getElementById('container');
   const highlight = document.getElementById('highlight');
   const statusEl = document.getElementById('status');
@@ -1618,11 +1677,65 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     }
   });
 
+  // ───── mermaid lazy load ─────
+  const MERMAID_CDN = 'https://cdnjs.cloudflare.com/ajax/libs/mermaid/11.4.1/mermaid.min.js';
+  const MERMAID_THEMES = {
+    '报纸': 'neutral', '极简白': 'default', '暗夜霓虹': 'dark',
+    '柔和糖果': 'default', '杂志大刊': 'neutral',
+  };
+  let mermaidLoaded = false;
+  let mermaidLoading = false;
+
+  function currentTemplate() {
+    const vars = document.getElementById('ass-chrome-vars');
+    if (!vars) return '';
+    // 暗夜霓虹 uses #0a0e14 page color, detect by that
+    const t = vars.textContent || '';
+    if (t.includes('#0a0e14')) return '暗夜霓虹';
+    if (t.includes('#fbf0f7')) return '柔和糖果';
+    if (t.includes('#fafafa')) return '极简白';
+    if (t.includes('#e9e0ca')) return '报纸';
+    return '杂志大刊';
+  }
+
+  function maybeRunMermaid() {
+    const els = container.querySelectorAll('pre.mermaid, code.language-mermaid');
+    if (els.length === 0) return;
+    // Normalize: unwrap <pre><code class="language-mermaid"> → <pre class="mermaid">
+    container.querySelectorAll('pre > code.language-mermaid').forEach(code => {
+      const pre = code.parentElement;
+      pre.classList.add('mermaid');
+      pre.textContent = code.textContent;
+    });
+    if (mermaidLoaded) { doMermaidRun(); return; }
+    if (mermaidLoading) return;
+    mermaidLoading = true;
+    const s = document.createElement('script');
+    s.src = MERMAID_CDN;
+    s.onload = () => {
+      mermaidLoaded = true;
+      mermaidLoading = false;
+      const theme = MERMAID_THEMES[currentTemplate()] || 'neutral';
+      window.mermaid.initialize({ startOnLoad: false, theme: theme });
+      doMermaidRun();
+    };
+    s.onerror = () => { mermaidLoading = false; console.error('mermaid load failed'); };
+    document.head.appendChild(s);
+  }
+
+  function doMermaidRun() {
+    const theme = MERMAID_THEMES[currentTemplate()] || 'neutral';
+    window.mermaid.initialize({ startOnLoad: false, theme: theme });
+    window.mermaid.run({ nodes: container.querySelectorAll('pre.mermaid') });
+  }
+
   // ───── artifact render ─────
   function renderArtifact(html) {
     container.innerHTML = html;
     sanitizeInjected();
     ensureAnchors();
+    if (typeof hljs !== 'undefined') container.querySelectorAll('pre code').forEach(el => hljs.highlightElement(el));
+    maybeRunMermaid();
     container.dataset.frozen = 'false';
     annotations.clear();
     editingId = null;
@@ -1633,6 +1746,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     setInspecting(isInspecting);
     maybeShowFirstTimeTutorial();
     initImgAi();
+    updateExportBtn();
   }
 
   function showSubmitOverlay() { submitOverlay.classList.add('visible'); }
@@ -1792,6 +1906,36 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
       closeTutorial();
     }
   });
+  // ───── settings: template switch + export ─────
+  const tplSelect = document.getElementById('tpl-select');
+  const exportBtn = document.getElementById('export-btn');
+
+  ASS_TEMPLATES.forEach(t => {
+    const opt = document.createElement('option');
+    opt.value = t; opt.textContent = t;
+    if (t === assCurrentTemplate) opt.selected = true;
+    tplSelect.appendChild(opt);
+  });
+
+  tplSelect.addEventListener('change', async () => {
+    try {
+      const res = await fetch(`/ui/${SID}/switch-template`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ template: tplSelect.value }),
+      });
+      if (res.ok) assCurrentTemplate = tplSelect.value;
+    } catch (e) { console.error('switch template failed', e); }
+  });
+
+  exportBtn.addEventListener('click', () => {
+    if (hasArtifact) window.open(`/ui/${SID}/export`, '_blank');
+  });
+
+  function updateExportBtn() {
+    exportBtn.disabled = !hasArtifact;
+  }
+
   let previewMouseDownTarget = null;
   previewModal.addEventListener('mousedown', (e) => { previewMouseDownTarget = e.target; });
   previewModal.addEventListener('click', (e) => {
@@ -2255,6 +2399,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     if (d.chrome_css !== undefined) upsertStyleSlot('ass-chrome-vars', d.chrome_css);
     upsertStyleSlot('ass-preset-styles', d.preset_css);
     upsertStyleSlot('ass-session-styles', d.session_css);
+    if (d.template) { assCurrentTemplate = d.template; tplSelect.value = d.template; }
   }
   // set_session 单独调用(不跟 render)时热更新样式:只换皮肤,不动 artifact。
   es.addEventListener('styles', (e) => {
@@ -2308,13 +2453,76 @@ def render_html(
     preset_css: str = "",
     session_css: str = "",
     chrome_css: str = "",
+    template_name: str = "",
 ) -> str:
+    tpl_list = "[" + ",".join(f'"{k}"' for k in TEMPLATES) + "]"
+    tpl_name = template_name or DEFAULT_TEMPLATE
     return (
         HTML_TEMPLATE
         .replace("__SID__", sid)
         .replace("__CHROME_VARS__", chrome_css)
         .replace("__PRESET_STYLES__", preset_css)
         .replace("__INITIAL_STYLES__", session_css)
+        .replace("__TEMPLATE_LIST__", tpl_list)
+        .replace("__CURRENT_TEMPLATE__", tpl_name)
+    )
+
+
+# ───── Mermaid 主题映射 ─────
+
+MERMAID_THEMES: dict[str, str] = {
+    "报纸": "neutral",
+    "极简白": "default",
+    "暗夜霓虹": "dark",
+    "柔和糖果": "default",
+    "杂志大刊": "neutral",
+}
+
+
+# ───── 导出模板(无 host 壳子的独立 HTML)─────
+
+EXPORT_TEMPLATE = r"""<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>agent-speak export</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<style type="text/tailwindcss">__PRESET_STYLES__</style>
+<style type="text/tailwindcss">__SESSION_STYLES__</style>
+</head>
+<body>
+<div class="artifact-root">__HTML__</div>
+<script>
+hljs.highlightAll();
+(function(){
+  var els = document.querySelectorAll('pre.mermaid');
+  if (!els.length) return;
+  var s = document.createElement('script');
+  s.src = 'https://cdnjs.cloudflare.com/ajax/libs/mermaid/11.4.1/mermaid.min.js';
+  s.onload = function(){ mermaid.initialize({startOnLoad:false, theme:'__MERMAID_THEME__'}); mermaid.run({nodes:els}); };
+  document.head.appendChild(s);
+})();
+</script>
+</body>
+</html>
+"""
+
+
+def export_html(
+    html: str,
+    preset_css: str = "",
+    session_css: str = "",
+    template_name: str = "",
+) -> str:
+    theme = MERMAID_THEMES.get(template_name or "", MERMAID_THEMES[DEFAULT_TEMPLATE])
+    return (
+        EXPORT_TEMPLATE
+        .replace("__PRESET_STYLES__", preset_css)
+        .replace("__SESSION_STYLES__", session_css)
+        .replace("__HTML__", html)
+        .replace("__MERMAID_THEME__", theme)
     )
 
 
@@ -2422,6 +2630,26 @@ _NEWSPAPER_CSS = """
   .artifact-root .ass-alert-info    { @apply bg-[#fffaf0] border-[#1a1a1a] text-[#1a1a1a]; }
   .artifact-root .ass-alert-warn    { @apply bg-[#f7eccf] border-[#b8860b] text-[#7a5a00]; }
   .artifact-root .ass-alert-danger  { @apply bg-[#f7e3e3] border-[#8b1e1e] text-[#8b1e1e]; }
+
+  /* —— Code Blocks (highlight.js) —— */
+  .artifact-root pre { margin: 1em 0; }
+  .artifact-root pre code.hljs { display: block; padding: 1em; overflow-x: auto; background: #1a1a1a; color: #f4ecd8; border: 2px solid #1a1a1a; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.875rem; line-height: 1.7; }
+  .artifact-root .hljs-keyword,
+  .artifact-root .hljs-selector-tag { color: #e07b53; font-weight: bold; }
+  .artifact-root .hljs-string,
+  .artifact-root .hljs-doctag { color: #b8bb26; }
+  .artifact-root .hljs-comment { color: #6b6b6b; font-style: italic; }
+  .artifact-root .hljs-number,
+  .artifact-root .hljs-literal { color: #d4a959; }
+  .artifact-root .hljs-title,
+  .artifact-root .hljs-title.function_ { color: #f4ecd8; font-weight: bold; }
+  .artifact-root .hljs-built_in { color: #e8a87c; }
+  .artifact-root .hljs-type,
+  .artifact-root .hljs-title.class_ { color: #c76c6c; }
+  .artifact-root .hljs-attr,
+  .artifact-root .hljs-variable { color: #d4a959; }
+  .artifact-root .hljs-meta { color: #8b6b4a; }
+  .artifact-root .hljs-punctuation { color: #a09880; }
 """
 
 _MINIMAL_CSS = """
@@ -2463,6 +2691,26 @@ _MINIMAL_CSS = """
   .artifact-root .ass-alert-info    { @apply bg-blue-50 border-blue-200 text-blue-800; }
   .artifact-root .ass-alert-warn    { @apply bg-amber-50 border-amber-200 text-amber-800; }
   .artifact-root .ass-alert-danger  { @apply bg-red-50 border-red-200 text-red-800; }
+
+  /* —— Code Blocks (highlight.js) —— */
+  .artifact-root pre { margin: 1em 0; }
+  .artifact-root pre code.hljs { display: block; padding: 1em; overflow-x: auto; background: #f6f8fa; color: #24292f; border: 1px solid #d0d7de; border-radius: 0.75rem; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.875rem; line-height: 1.7; }
+  .artifact-root .hljs-keyword,
+  .artifact-root .hljs-selector-tag { color: #cf222e; }
+  .artifact-root .hljs-string,
+  .artifact-root .hljs-doctag { color: #0a3069; }
+  .artifact-root .hljs-comment { color: #6e7781; font-style: italic; }
+  .artifact-root .hljs-number,
+  .artifact-root .hljs-literal { color: #0550ae; }
+  .artifact-root .hljs-title,
+  .artifact-root .hljs-title.function_ { color: #8250df; }
+  .artifact-root .hljs-built_in { color: #0550ae; }
+  .artifact-root .hljs-type,
+  .artifact-root .hljs-title.class_ { color: #953800; }
+  .artifact-root .hljs-attr,
+  .artifact-root .hljs-variable { color: #0550ae; }
+  .artifact-root .hljs-meta { color: #6e7781; }
+  .artifact-root .hljs-punctuation { color: #57606a; }
 """
 
 _CYBER_CSS = """
@@ -2504,6 +2752,26 @@ _CYBER_CSS = """
   .artifact-root .ass-alert-info    { @apply bg-cyan-500/10 border-cyan-400 text-cyan-200; }
   .artifact-root .ass-alert-warn    { @apply bg-amber-500/10 border-amber-400 text-amber-200; }
   .artifact-root .ass-alert-danger  { @apply bg-fuchsia-500/10 border-fuchsia-400 text-fuchsia-200; }
+
+  /* —— Code Blocks (highlight.js) —— */
+  .artifact-root pre { margin: 1em 0; }
+  .artifact-root pre code.hljs { display: block; padding: 1em; overflow-x: auto; background: #0d1117; color: #c9d1d9; border: 1px solid rgba(34,211,238,0.2); border-radius: 0.75rem; box-shadow: 0 0 16px rgba(34,211,238,0.06); font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.875rem; line-height: 1.7; }
+  .artifact-root .hljs-keyword,
+  .artifact-root .hljs-selector-tag { color: #ff79c6; }
+  .artifact-root .hljs-string,
+  .artifact-root .hljs-doctag { color: #a5d6ff; }
+  .artifact-root .hljs-comment { color: #8b949e; font-style: italic; }
+  .artifact-root .hljs-number,
+  .artifact-root .hljs-literal { color: #79c0ff; }
+  .artifact-root .hljs-title,
+  .artifact-root .hljs-title.function_ { color: #d2a8ff; }
+  .artifact-root .hljs-built_in { color: #22d3ee; }
+  .artifact-root .hljs-type,
+  .artifact-root .hljs-title.class_ { color: #7ee787; }
+  .artifact-root .hljs-attr,
+  .artifact-root .hljs-variable { color: #79c0ff; }
+  .artifact-root .hljs-meta { color: #636e7b; }
+  .artifact-root .hljs-punctuation { color: #6e7681; }
 """
 
 _CANDY_CSS = """
@@ -2545,6 +2813,26 @@ _CANDY_CSS = """
   .artifact-root .ass-alert-info    { @apply bg-sky-50 border-sky-200 text-sky-700; }
   .artifact-root .ass-alert-warn    { @apply bg-amber-50 border-amber-200 text-amber-700; }
   .artifact-root .ass-alert-danger  { @apply bg-rose-50 border-rose-200 text-rose-700; }
+
+  /* —— Code Blocks (highlight.js) —— */
+  .artifact-root pre { margin: 1em 0; }
+  .artifact-root pre code.hljs { display: block; padding: 1em; overflow-x: auto; background: #fef2f8; color: #4a4458; border: 1px solid #f9a8d4; border-radius: 1.5rem; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.875rem; line-height: 1.7; }
+  .artifact-root .hljs-keyword,
+  .artifact-root .hljs-selector-tag { color: #d946ef; }
+  .artifact-root .hljs-string,
+  .artifact-root .hljs-doctag { color: #059669; }
+  .artifact-root .hljs-comment { color: #9ca3af; font-style: italic; }
+  .artifact-root .hljs-number,
+  .artifact-root .hljs-literal { color: #6366f1; }
+  .artifact-root .hljs-title,
+  .artifact-root .hljs-title.function_ { color: #ec4899; font-weight: 600; }
+  .artifact-root .hljs-built_in { color: #8b5cf6; }
+  .artifact-root .hljs-type,
+  .artifact-root .hljs-title.class_ { color: #db2777; }
+  .artifact-root .hljs-attr,
+  .artifact-root .hljs-variable { color: #7c3aed; }
+  .artifact-root .hljs-meta { color: #a1a1aa; }
+  .artifact-root .hljs-punctuation { color: #a8a29e; }
 """
 
 _MAGAZINE_CSS = """
@@ -2586,6 +2874,26 @@ _MAGAZINE_CSS = """
   .artifact-root .ass-alert-info    { @apply bg-neutral-100 border-neutral-900 text-neutral-900; }
   .artifact-root .ass-alert-warn    { @apply bg-orange-50 border-orange-600 text-orange-800; }
   .artifact-root .ass-alert-danger  { @apply bg-red-50 border-red-600 text-red-700; }
+
+  /* —— Code Blocks (highlight.js) —— */
+  .artifact-root pre { margin: 1em 0; }
+  .artifact-root pre code.hljs { display: block; padding: 1em; overflow-x: auto; background: #18181b; color: #fafafa; border: 1px solid #27272a; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.875rem; line-height: 1.7; }
+  .artifact-root .hljs-keyword,
+  .artifact-root .hljs-selector-tag { color: #fb923c; font-weight: bold; }
+  .artifact-root .hljs-string,
+  .artifact-root .hljs-doctag { color: #86efac; }
+  .artifact-root .hljs-comment { color: #71717a; font-style: italic; }
+  .artifact-root .hljs-number,
+  .artifact-root .hljs-literal { color: #fbbf24; }
+  .artifact-root .hljs-title,
+  .artifact-root .hljs-title.function_ { color: #fafafa; font-weight: bold; }
+  .artifact-root .hljs-built_in { color: #f97316; }
+  .artifact-root .hljs-type,
+  .artifact-root .hljs-title.class_ { color: #fb923c; }
+  .artifact-root .hljs-attr,
+  .artifact-root .hljs-variable { color: #fdba74; }
+  .artifact-root .hljs-meta { color: #52525b; }
+  .artifact-root .hljs-punctuation { color: #71717a; }
 """
 
 DEFAULT_TEMPLATE = "报纸"
