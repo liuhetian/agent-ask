@@ -7,7 +7,7 @@ Host 的核心职责:
 - DOM Inspector:右下角日记本里的"批注"开关(默认开),开启时悬停 data-ai-id
   节点显示蓝色高亮 + 提示,点击进入编辑;关闭仅停掉嗅探,日记本本身始终在。
 - 日记本:右下角的小本子,始终可见。一条条记录,空也是本子。底部动作:
-  预览并发送(走预览弹窗确认流程)。
+  发送(走预览弹窗确认流程)。
 - 元素徽章:每条已保存的批注在元素内部右上角投一个黄色数字徽章
   (放在元素内部以避免靠边时被裁掉),点徽章即可回去编辑。
 - Uncontrolled Form Harvest:扫描 input/textarea/select。
@@ -40,7 +40,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>agent-speak</title>
 <script src="https://cdn.tailwindcss.com"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/highlight.min.js"></script>
 <style>
   /* ───── host 壳子(右下角工具栏 / 日记本 / 弹窗 / 遮罩)的主题 token ─────
      这里是默认值(报纸风)。set_session 选模版时,#ass-chrome-vars 槽会注入
@@ -408,6 +408,66 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     outline-offset: -2px;
   }
 
+  /* More toggle — collapse/expand extra buttons */
+  #more-btn {
+    padding: 0 10px;
+    font-size: 16px; font-weight: 700;
+    color: var(--asc-muted);
+    background: transparent;
+    border: 0;
+    line-height: 1;
+    cursor: pointer;
+    transition: transform 180ms;
+  }
+  #more-btn:hover { color: var(--asc-on-surface); }
+  .nb-toolbar .nb-extra { display: none; }
+  .nb-toolbar.expanded .nb-extra { display: inline-flex; }
+  .nb-toolbar.expanded #more-btn { transform: scaleX(-1); }
+
+  /* Settings button — same family as help */
+  #settings-btn {
+    padding: 0 12px;
+    font-size: 14px;
+    color: var(--asc-muted);
+    background: transparent;
+    border: 0;
+    border-radius: var(--asc-radius);
+    line-height: 1;
+    cursor: pointer;
+    font-family: var(--asc-font);
+  }
+  #settings-btn:hover { background: color-mix(in srgb, var(--asc-on-surface) 8%, transparent); color: var(--asc-on-surface); }
+  #settings-btn:focus { outline: none; }
+  #settings-btn:focus-visible { outline: 2px solid var(--asc-accent); outline-offset: -2px; }
+
+  /* Settings panel — floating above toolbar */
+  #settings-panel {
+    width: 320px;
+    background: var(--asc-surface);
+    border: 2px solid var(--asc-on-surface);
+    border-radius: var(--asc-radius);
+    box-shadow: var(--asc-shadow);
+    font-family: var(--asc-font);
+    padding: 12px 16px;
+    color: var(--asc-on-surface);
+  }
+  #settings-panel.hidden { display: none; }
+  .sp-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 0;
+  }
+  .sp-row + .sp-row {
+    border-top: 1px solid color-mix(in srgb, var(--asc-on-surface) 18%, transparent);
+  }
+  .sp-row label {
+    font-weight: 700; font-size: 13px;
+  }
+  .sp-row select {
+    border: 1px solid var(--asc-on-surface); border-radius: var(--asc-radius);
+    background: var(--asc-field); color: var(--asc-on-surface);
+    padding: 4px 8px; font-size: 12px; font-family: inherit; font-weight: 700;
+  }
+
   /* ───── tutorial modal — newspaper poster with 3 tabs + knockout caps ───── */
   #tutorial-modal {
     position: fixed; inset: 0; z-index: 9700;
@@ -464,7 +524,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
   /* Tab strip — 3 equal cells, active = knockout */
   #tutorial-modal .t-tabs {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(3, 1fr);
     border-bottom: 3px solid var(--asc-on-surface);
     background: var(--asc-surface);
   }
@@ -1182,8 +1242,20 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
       <span id="mode-label">批注中</span>
     </button>
     <button id="img-panel-btn" class="disabled" type="button" title="图片画布">🎨 图片 <span id="img-count">0</span></button>
-    <button id="preview-send-btn" type="button" disabled title="预览并发送给 AI">预览并发送</button>
-    <button id="help-btn" type="button" title="使用教程" aria-label="帮助">?</button>
+    <button id="preview-send-btn" type="button" disabled title="发送给 AI">发送</button>
+    <button id="more-btn" type="button" title="更多" aria-label="更多">›</button>
+    <button id="settings-btn" class="nb-extra" type="button" title="设置" aria-label="设置">⚙</button>
+    <button id="help-btn" class="nb-extra" type="button" title="使用教程" aria-label="帮助">?</button>
+  </div>
+  <div id="settings-panel" class="hidden">
+    <div class="sp-row">
+      <label>模版</label>
+      <select id="tpl-select"></select>
+    </div>
+    <div class="sp-row">
+      <label>导出</label>
+      <button class="t-export-btn" id="export-btn" type="button" disabled>下载 HTML</button>
+    </div>
   </div>
 </div>
 <div id="preview-modal" class="hidden">
@@ -1249,10 +1321,6 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
         <span class="t-tab-num">03</span>
         <span class="t-tab-label">发送之后</span>
       </button>
-      <button class="t-tab" data-tab="settings" type="button">
-        <span class="t-tab-num">04</span>
-        <span class="t-tab-label">设置</span>
-      </button>
     </div>
 
     <div class="t-body">
@@ -1305,8 +1373,8 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
             <span>鼠标停在元素上 → 蓝框出现 → 点击 → 在便签里写"这块改成…"</span>
           </li>
           <li>
-            <strong>预览并发送</strong>
-            <span>点"预览并发送"——绿色按钮,对照内容后确认发送</span>
+            <strong>发送</strong>
+            <span>点"发送"——绿色按钮,对照内容后确认发送</span>
           </li>
         </ol>
       </section>
@@ -1327,26 +1395,6 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
         <p class="t-source">
           想再读一遍?点右下角药丸里的 <strong>?</strong>。
         </p>
-      </section>
-
-      <section class="t-pane" data-pane="settings">
-        <div class="t-pane-grid">
-          <div class="t-numblock">04</div>
-          <div class="t-pane-content">
-            <span class="t-tag">Preferences</span>
-            <h4>模版与导出</h4>
-          </div>
-        </div>
-        <div class="t-settings">
-          <div class="t-setting-row">
-            <label>页面模版</label>
-            <select id="tpl-select"></select>
-          </div>
-          <div class="t-setting-row">
-            <label>保存为独立 HTML</label>
-            <button class="t-export-btn" id="export-btn" type="button" disabled>下载</button>
-          </div>
-        </div>
       </section>
     </div>
 
@@ -1490,7 +1538,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
 
   function updateSendBtn() {
     previewSendBtn.disabled = !hasArtifact;
-    previewSendBtn.title = hasArtifact ? '预览并发送给 AI' : '等待 artifact';
+    previewSendBtn.title = hasArtifact ? '发送给 AI' : '等待 artifact';
   }
 
   function refreshAnnotationOutlines() {
@@ -1690,7 +1738,11 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
   });
 
   // ───── mermaid lazy load ─────
-  const MERMAID_CDN = 'https://cdnjs.cloudflare.com/ajax/libs/mermaid/11.4.1/mermaid.min.js';
+  const MERMAID_CDNS = [
+    'https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js',
+    'https://unpkg.com/mermaid@11.4.1/dist/mermaid.min.js',
+    'https://cdnjs.cloudflare.com/ajax/libs/mermaid/11.4.1/mermaid.min.js',
+  ];
   const MERMAID_THEMES = {
     '报纸': 'neutral', '极简白': 'default', '暗夜霓虹': 'dark',
     '柔和糖果': 'default', '杂志大刊': 'neutral',
@@ -1698,47 +1750,66 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
   let mermaidLoaded = false;
   let mermaidLoading = false;
 
-  function currentTemplate() {
-    const vars = document.getElementById('ass-chrome-vars');
-    if (!vars) return '';
-    // 暗夜霓虹 uses #0a0e14 page color, detect by that
-    const t = vars.textContent || '';
-    if (t.includes('#0a0e14')) return '暗夜霓虹';
-    if (t.includes('#fbf0f7')) return '柔和糖果';
-    if (t.includes('#fafafa')) return '极简白';
-    if (t.includes('#e9e0ca')) return '报纸';
-    return '杂志大刊';
-  }
-
-  function maybeRunMermaid() {
-    const els = container.querySelectorAll('pre.mermaid, code.language-mermaid');
-    if (els.length === 0) return;
-    // Normalize: unwrap <pre><code class="language-mermaid"> → <pre class="mermaid">
+  function normalizeMermaidBlocks() {
     container.querySelectorAll('pre > code.language-mermaid').forEach(code => {
       const pre = code.parentElement;
       pre.classList.add('mermaid');
       pre.textContent = code.textContent;
     });
-    if (mermaidLoaded) { doMermaidRun(); return; }
-    if (mermaidLoading) return;
-    mermaidLoading = true;
+  }
+
+  function mermaidNodes() {
+    return container.querySelectorAll('pre.mermaid:not([data-mermaid-processed])');
+  }
+
+  function showMermaidError(node, msg) {
+    node.setAttribute('data-mermaid-processed', 'error');
+    node.style.cssText = 'border:2px dashed #c00;padding:1em;background:color-mix(in srgb,#c00 6%,transparent);font-size:13px;white-space:pre-wrap;';
+    node.innerHTML = '<strong style="color:#c00">Mermaid 渲染失败</strong>\n' + escHtml(msg) + '\n\n' + escHtml(node.textContent);
+  }
+
+  function loadMermaidCDN(index) {
+    if (index >= MERMAID_CDNS.length) {
+      mermaidLoading = false;
+      console.error('all mermaid CDNs failed');
+      mermaidNodes().forEach(n => showMermaidError(n, '所有 CDN 均加载失败'));
+      return;
+    }
+    const url = MERMAID_CDNS[index];
     const s = document.createElement('script');
-    s.src = MERMAID_CDN;
+    s.src = url;
     s.onload = () => {
       mermaidLoaded = true;
       mermaidLoading = false;
-      const theme = MERMAID_THEMES[currentTemplate()] || 'neutral';
-      window.mermaid.initialize({ startOnLoad: false, theme: theme });
       doMermaidRun();
     };
-    s.onerror = () => { mermaidLoading = false; console.error('mermaid load failed'); };
+    s.onerror = () => {
+      console.warn('mermaid CDN failed: ' + url + ', trying next...');
+      s.remove();
+      loadMermaidCDN(index + 1);
+    };
     document.head.appendChild(s);
   }
 
+  function maybeRunMermaid() {
+    const raw = container.querySelectorAll('pre.mermaid, code.language-mermaid');
+    if (raw.length === 0) return;
+    normalizeMermaidBlocks();
+    if (mermaidLoaded) { doMermaidRun(); return; }
+    if (mermaidLoading) return;
+    mermaidLoading = true;
+    loadMermaidCDN(0);
+  }
+
   function doMermaidRun() {
-    const theme = MERMAID_THEMES[currentTemplate()] || 'neutral';
+    const theme = MERMAID_THEMES[assCurrentTemplate] || 'neutral';
     window.mermaid.initialize({ startOnLoad: false, theme: theme });
-    window.mermaid.run({ nodes: container.querySelectorAll('pre.mermaid') });
+    const nodes = mermaidNodes();
+    if (nodes.length === 0) return;
+    window.mermaid.run({ nodes: nodes }).catch(err => {
+      console.error('mermaid.run() failed', err);
+      mermaidNodes().forEach(n => showMermaidError(n, String(err)));
+    });
   }
 
   // ───── artifact render ─────
@@ -1746,7 +1817,10 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     container.innerHTML = html;
     sanitizeInjected();
     ensureAnchors();
-    if (typeof hljs !== 'undefined') container.querySelectorAll('pre code').forEach(el => hljs.highlightElement(el));
+    if (typeof hljs !== 'undefined') container.querySelectorAll('pre code').forEach(el => {
+      if (el.classList.contains('language-mermaid') || el.closest('pre.mermaid')) return;
+      hljs.highlightElement(el);
+    });
     maybeRunMermaid();
     container.dataset.frozen = 'false';
     annotations.clear();
@@ -1918,9 +1992,24 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
       closeTutorial();
     }
   });
-  // ───── settings: template switch + export ─────
+  // ───── more toggle (collapse ⚙ and ?) ─────
+  const moreBtn = document.getElementById('more-btn');
+  const toolbar = document.querySelector('.nb-toolbar');
+  moreBtn.addEventListener('click', () => {
+    const expanding = !toolbar.classList.contains('expanded');
+    toolbar.classList.toggle('expanded');
+    if (!expanding) settingsPanel.classList.add('hidden');
+  });
+
+  // ───── settings panel (⚙ button) ─────
+  const settingsBtn = document.getElementById('settings-btn');
+  const settingsPanel = document.getElementById('settings-panel');
   const tplSelect = document.getElementById('tpl-select');
   const exportBtn = document.getElementById('export-btn');
+
+  settingsBtn.addEventListener('click', () => {
+    settingsPanel.classList.toggle('hidden');
+  });
 
   ASS_TEMPLATES.forEach(t => {
     const opt = document.createElement('option');
@@ -2492,7 +2581,7 @@ EXPORT_TEMPLATE = r"""<!DOCTYPE html>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>agent-speak export</title>
 <script src="https://cdn.tailwindcss.com"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/highlight.min.js"></script>
 <style type="text/tailwindcss">__PRESET_STYLES__</style>
 <style type="text/tailwindcss">__SESSION_STYLES__</style>
 </head>
@@ -2504,9 +2593,16 @@ hljs.highlightAll();
   var els = document.querySelectorAll('pre.mermaid');
   if (!els.length) return;
   var s = document.createElement('script');
-  s.src = 'https://cdnjs.cloudflare.com/ajax/libs/mermaid/11.4.1/mermaid.min.js';
-  s.onload = function(){ mermaid.initialize({startOnLoad:false, theme:'__MERMAID_THEME__'}); mermaid.run({nodes:els}); };
-  document.head.appendChild(s);
+  var cdns = ['https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js','https://unpkg.com/mermaid@11.4.1/dist/mermaid.min.js'];
+  function tryLoad(i) {
+    if (i >= cdns.length) return;
+    var s = document.createElement('script');
+    s.src = cdns[i];
+    s.onload = function(){ mermaid.initialize({startOnLoad:false, theme:'__MERMAID_THEME__'}); mermaid.run({nodes:els}); };
+    s.onerror = function(){ s.remove(); tryLoad(i+1); };
+    document.head.appendChild(s);
+  }
+  tryLoad(0);
 })();
 </script>
 </body>
