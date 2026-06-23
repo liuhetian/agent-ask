@@ -36,12 +36,30 @@ from .presets import (
 )
 
 
+# 项目 logo(见 assets/logo.svg)的 base64,内联进 <head> 当 favicon——
+# 渲染页面 / 导出 HTML 的浏览器标签页都打这个图标,不额外发请求。
+LOGO_FAVICON_B64 = (
+    "PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCIgZml"
+    "sbD0ibm9uZSI+PGRlZnM+PG1hc2sgaWQ9ImMiPjxyZWN0IHg9IjExIiB5PSIxMyIgd2lkdGg9IjQyIiBoZW"
+    "lnaHQ9IjMwIiByeD0iMTMiIGZpbGw9IiNmZmYiLz48cGF0aCBkPSJNMjMgNDAgUTE2IDUwIDEyLjUgNTEgU"
+    "TE1LjUgNDYuNSAxOS41IDQxLjUgWiIgZmlsbD0iI2ZmZiIvPjxwYXRoIGQ9Ik0yOCAyMiBMMjMuNSAyOCBM"
+    "MjggMzQiIHN0cm9rZT0iIzAwMCIgc3Ryb2tlLXdpZHRoPSIzIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN"
+    "0cm9rZS1saW5lam9pbj0icm91bmQiLz48cGF0aCBkPSJNMzYgMjIgTDQwLjUgMjggTDM2IDM0IiBzdHJva2"
+    "U9IiMwMDAiIHN0cm9rZS13aWR0aD0iMyIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpva"
+    "W49InJvdW5kIi8+PC9tYXNrPjwvZGVmcz48cmVjdCB3aWR0aD0iNjQiIGhlaWdodD0iNjQiIHJ4PSIxNiIg"
+    "ZmlsbD0iI2VmZTZkNCIvPjxyZWN0IHg9IjkiIHk9IjExIiB3aWR0aD0iNDYiIGhlaWdodD0iNDQiIGZpbGw"
+    "9IiMzYTMzMzAiIG1hc2s9InVybCgjYykiLz48cGF0aCBkPSJNMzUgMjEgTDI5IDM1IiBzdHJva2U9IiNjMj"
+    "cwM2QiIHN0cm9rZS13aWR0aD0iMyIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIi8+PC9zdmc+"
+)
+
+
 HTML_TEMPLATE = r"""<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>agent-speak</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,__FAVICON_B64__">
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/highlight.min.js"></script>
 <style>
@@ -2543,6 +2561,7 @@ def render_html(
         .replace("__TEMPLATE_LIST__", tpl_list)
         .replace("__CURRENT_TEMPLATE__", tpl_name)
         .replace("__MERMAID_CONFIGS__", mermaid_configs_json())
+        .replace("__FAVICON_B64__", LOGO_FAVICON_B64)
     )
 
 
@@ -2554,6 +2573,7 @@ EXPORT_TEMPLATE = r"""<!DOCTYPE html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>agent-speak export</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,__FAVICON_B64__">
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/highlight.min.js"></script>
 <style type="text/tailwindcss">__PRESET_STYLES__</style>
@@ -2599,6 +2619,7 @@ def export_html(
         .replace("__SESSION_STYLES__", session_css)
         .replace("__HTML__", html)
         .replace("__MERMAID_INIT_CONFIG__", json.dumps(cfg, ensure_ascii=False))
+        .replace("__FAVICON_B64__", LOGO_FAVICON_B64)
     )
 
 

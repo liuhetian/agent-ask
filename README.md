@@ -1,4 +1,8 @@
-# agent-speak
+<p align="center">
+  <img src="assets/logo.svg" alt="agent-speak logo" width="96" height="96">
+</p>
+
+<h1 align="center">agent-speak</h1>
 
 让 AI 用富 UI 而非 markdown 跟你对话——AI 输出一段静态 HTML,你在浏览器里批注、填表、提交,结构化反馈再回到 AI。
 

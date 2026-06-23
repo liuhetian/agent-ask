@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none">
+  <defs>
+    <mask id="cut">
+      <!-- 白 = 保留(气泡本体 + 尾巴) -->
+      <rect x="11" y="13" width="42" height="30" rx="13" fill="#fff"/>
+      <path d="M23 40 Q16 50 12.5 51 Q15.5 46.5 19.5 41.5 Z" fill="#fff"/>
+      <!-- 黑 = 真镂空挖掉的 < 和 > -->
+      <path d="M28 22 L23.5 28 L28 34" stroke="#000" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+      <path d="M36 22 L40.5 28 L36 34" stroke="#000" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    </mask>
+  </defs>
+  <!-- 外部纯米色底板 -->
+  <rect width="64" height="64" rx="16" fill="#efe6d4"/>
+  <!-- 墨褐气泡,经 mask 裁形并挖出 <> -->
+  <rect x="9" y="11" width="46" height="44" fill="#3a3330" mask="url(#cut)"/>
+  <!-- 中间斜杠:暖橙强调,凑成 </> -->
+  <path d="M35 21 L29 35" stroke="#c2703d" stroke-width="3" stroke-linecap="round"/>
+</svg>
