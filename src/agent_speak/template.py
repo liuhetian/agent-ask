@@ -24,10 +24,13 @@ from .presets import (
     DEFAULT_TEMPLATE,
     IMAGE_STYLE_GUIDES,
     MERMAID_THEMES,
+    MERMAID_THEME_VARS,
     TEMPLATES,
     TEMPLATE_GUIDES,
     chrome_vars_css,
     image_style_guide,
+    mermaid_configs_json,
+    mermaid_init_config,
     template_css,
     template_guide,
 )
@@ -387,36 +390,13 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
   }
   #preview-send-btn:disabled:hover { background: color-mix(in srgb, var(--asc-on-surface) 12%, transparent); }
 
-  /* Small help/question-mark — same toolbar family */
-  #help-btn {
-    padding: 0 12px;
-    font-family: var(--asc-font);
-    font-size: 15px;
-    font-weight: 900;
-    font-style: italic;
-    color: var(--asc-muted);
-    background: transparent;
-    border: 0;
-    border-radius: var(--asc-radius);
-    line-height: 1;
-    cursor: pointer;
-  }
-  #help-btn:hover { background: color-mix(in srgb, var(--asc-on-surface) 8%, transparent); color: var(--asc-on-surface); }
-  #help-btn:focus { outline: none; }
-  #help-btn:focus-visible {
-    outline: 2px solid var(--asc-accent);
-    outline-offset: -2px;
-  }
+  /* help-btn font tweaks (base handled by #settings-btn, #help-btn block above) */
+  #help-btn { font-style: italic; font-weight: 900; }
 
-  /* More toggle — collapse/expand extra buttons */
+  /* More toggle — collapse/expand extra buttons (inherits .nb-toolbar button base) */
   #more-btn {
-    padding: 0 10px;
-    font-size: 16px; font-weight: 700;
+    padding: 0 12px;
     color: var(--asc-muted);
-    background: transparent;
-    border: 0;
-    line-height: 1;
-    cursor: pointer;
     transition: transform 180ms;
   }
   #more-btn:hover { color: var(--asc-on-surface); }
@@ -424,25 +404,21 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
   .nb-toolbar.expanded .nb-extra { display: inline-flex; }
   .nb-toolbar.expanded #more-btn { transform: scaleX(-1); }
 
-  /* Settings button — same family as help */
-  #settings-btn {
+  /* Extra buttons (⚙ ?) — same metrics as other toolbar buttons */
+  #settings-btn,
+  #help-btn {
     padding: 0 12px;
-    font-size: 14px;
     color: var(--asc-muted);
-    background: transparent;
-    border: 0;
-    border-radius: var(--asc-radius);
-    line-height: 1;
-    cursor: pointer;
-    font-family: var(--asc-font);
   }
-  #settings-btn:hover { background: color-mix(in srgb, var(--asc-on-surface) 8%, transparent); color: var(--asc-on-surface); }
-  #settings-btn:focus { outline: none; }
-  #settings-btn:focus-visible { outline: 2px solid var(--asc-accent); outline-offset: -2px; }
+  #settings-btn:hover,
+  #help-btn:hover { color: var(--asc-on-surface); }
 
-  /* Settings panel — floating above toolbar */
+  /* Settings panel — fixed, floating above the toolbar */
   #settings-panel {
-    width: 320px;
+    position: fixed;
+    bottom: 62px; right: 16px;
+    z-index: 9200;
+    width: 260px;
     background: var(--asc-surface);
     border: 2px solid var(--asc-on-surface);
     border-radius: var(--asc-radius);
@@ -1247,15 +1223,15 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     <button id="settings-btn" class="nb-extra" type="button" title="设置" aria-label="设置">⚙</button>
     <button id="help-btn" class="nb-extra" type="button" title="使用教程" aria-label="帮助">?</button>
   </div>
-  <div id="settings-panel" class="hidden">
-    <div class="sp-row">
-      <label>模版</label>
-      <select id="tpl-select"></select>
-    </div>
-    <div class="sp-row">
-      <label>导出</label>
-      <button class="t-export-btn" id="export-btn" type="button" disabled>下载 HTML</button>
-    </div>
+</div>
+<div id="settings-panel" class="hidden">
+  <div class="sp-row">
+    <label>模版</label>
+    <select id="tpl-select"></select>
+  </div>
+  <div class="sp-row">
+    <label>导出</label>
+    <button class="t-export-btn" id="export-btn" type="button" disabled>下载 HTML</button>
   </div>
 </div>
 <div id="preview-modal" class="hidden">
@@ -1743,10 +1719,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     'https://unpkg.com/mermaid@11.4.1/dist/mermaid.min.js',
     'https://cdnjs.cloudflare.com/ajax/libs/mermaid/11.4.1/mermaid.min.js',
   ];
-  const MERMAID_THEMES = {
-    '报纸': 'neutral', '极简白': 'default', '暗夜霓虹': 'dark',
-    '柔和糖果': 'default', '杂志大刊': 'neutral',
-  };
+  const MERMAID_CONFIGS = __MERMAID_CONFIGS__;
   let mermaidLoaded = false;
   let mermaidLoading = false;
 
@@ -1802,8 +1775,8 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
   }
 
   function doMermaidRun() {
-    const theme = MERMAID_THEMES[assCurrentTemplate] || 'neutral';
-    window.mermaid.initialize({ startOnLoad: false, theme: theme });
+    const cfg = MERMAID_CONFIGS[assCurrentTemplate] || MERMAID_CONFIGS['报纸'] || { theme: 'neutral' };
+    window.mermaid.initialize({ startOnLoad: false, ...cfg });
     const nodes = mermaidNodes();
     if (nodes.length === 0) return;
     window.mermaid.run({ nodes: nodes }).catch(err => {
@@ -2569,6 +2542,7 @@ def render_html(
         .replace("__INITIAL_STYLES__", session_css)
         .replace("__TEMPLATE_LIST__", tpl_list)
         .replace("__CURRENT_TEMPLATE__", tpl_name)
+        .replace("__MERMAID_CONFIGS__", mermaid_configs_json())
     )
 
 
@@ -2598,7 +2572,7 @@ hljs.highlightAll();
     if (i >= cdns.length) return;
     var s = document.createElement('script');
     s.src = cdns[i];
-    s.onload = function(){ mermaid.initialize({startOnLoad:false, theme:'__MERMAID_THEME__'}); mermaid.run({nodes:els}); };
+    s.onload = function(){ mermaid.initialize(__MERMAID_INIT_CONFIG__); mermaid.run({nodes:els}); };
     s.onerror = function(){ s.remove(); tryLoad(i+1); };
     document.head.appendChild(s);
   }
@@ -2616,13 +2590,15 @@ def export_html(
     session_css: str = "",
     template_name: str = "",
 ) -> str:
-    theme = MERMAID_THEMES.get(template_name or "", MERMAID_THEMES[DEFAULT_TEMPLATE])
+    import json
+    cfg = mermaid_init_config(template_name)
+    cfg["startOnLoad"] = False
     return (
         EXPORT_TEMPLATE
         .replace("__PRESET_STYLES__", preset_css)
         .replace("__SESSION_STYLES__", session_css)
         .replace("__HTML__", html)
-        .replace("__MERMAID_THEME__", theme)
+        .replace("__MERMAID_INIT_CONFIG__", json.dumps(cfg, ensure_ascii=False))
     )
 
 
@@ -2674,6 +2650,7 @@ __all__ = [
     "parse_css_rules", "compose_styles_css",
     # 从 presets 重导出
     "TEMPLATES", "DEFAULT_TEMPLATE", "CHROME_THEMES",
-    "MERMAID_THEMES", "TEMPLATE_GUIDES", "IMAGE_STYLE_GUIDES",
+    "MERMAID_THEMES", "MERMAID_THEME_VARS", "TEMPLATE_GUIDES", "IMAGE_STYLE_GUIDES",
     "template_css", "chrome_vars_css", "template_guide", "image_style_guide",
+    "mermaid_init_config", "mermaid_configs_json",
 ]

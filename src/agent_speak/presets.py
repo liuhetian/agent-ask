@@ -342,11 +342,184 @@ TEMPLATES: dict[str, str] = {
 # ───── Mermaid 主题映射 ─────
 
 MERMAID_THEMES: dict[str, str] = {
-    "报纸": "neutral",
-    "极简白": "default",
-    "暗夜霓虹": "dark",
-    "柔和糖果": "default",
-    "杂志大刊": "neutral",
+    "报纸": "base",
+    "极简白": "base",
+    "暗夜霓虹": "base",
+    "柔和糖果": "base",
+    "杂志大刊": "base",
+}
+
+MERMAID_THEME_VARS: dict[str, dict[str, str]] = {
+    "报纸": {
+        "primaryColor": "#f4ecd8",
+        "primaryTextColor": "#1a1a1a",
+        "primaryBorderColor": "#1a1a1a",
+        "secondaryColor": "#e9e0ca",
+        "secondaryTextColor": "#1a1a1a",
+        "secondaryBorderColor": "#6b6b6b",
+        "tertiaryColor": "#fffaf0",
+        "tertiaryTextColor": "#1a1a1a",
+        "tertiaryBorderColor": "#8b6b4a",
+        "lineColor": "#1a1a1a",
+        "textColor": "#1a1a1a",
+        "mainBkg": "#f4ecd8",
+        "nodeBorder": "#1a1a1a",
+        "clusterBkg": "#ebe3cf",
+        "clusterBorder": "#1a1a1a",
+        "titleColor": "#1a1a1a",
+        "edgeLabelBackground": "#f4ecd8",
+        "actorBkg": "#f4ecd8",
+        "actorBorder": "#1a1a1a",
+        "actorTextColor": "#1a1a1a",
+        "signalColor": "#1a1a1a",
+        "signalTextColor": "#1a1a1a",
+        "cScale0": "#f4ecd8",
+        "cScale1": "#e8dfc9",
+        "cScale2": "#d8cdb5",
+        "cScale3": "#f0e4cc",
+        "cScale4": "#ebe3cf",
+        "cScaleLabel0": "#1a1a1a",
+        "cScaleLabel1": "#1a1a1a",
+        "cScaleLabel2": "#1a1a1a",
+        "cScaleLabel3": "#1a1a1a",
+        "cScaleLabel4": "#1a1a1a",
+    },
+    "极简白": {
+        "primaryColor": "#dbeafe",
+        "primaryTextColor": "#1e293b",
+        "primaryBorderColor": "#93c5fd",
+        "secondaryColor": "#f1f5f9",
+        "secondaryTextColor": "#334155",
+        "secondaryBorderColor": "#cbd5e1",
+        "tertiaryColor": "#e2e8f0",
+        "tertiaryTextColor": "#334155",
+        "tertiaryBorderColor": "#94a3b8",
+        "lineColor": "#64748b",
+        "textColor": "#334155",
+        "mainBkg": "#dbeafe",
+        "nodeBorder": "#93c5fd",
+        "clusterBkg": "#f8fafc",
+        "clusterBorder": "#cbd5e1",
+        "titleColor": "#0f172a",
+        "edgeLabelBackground": "#ffffff",
+        "actorBkg": "#dbeafe",
+        "actorBorder": "#93c5fd",
+        "actorTextColor": "#1e293b",
+        "signalColor": "#64748b",
+        "signalTextColor": "#334155",
+        "cScale0": "#dbeafe",
+        "cScale1": "#e0e7ff",
+        "cScale2": "#e2e8f0",
+        "cScale3": "#ede9fe",
+        "cScale4": "#f1f5f9",
+        "cScaleLabel0": "#1e3a5f",
+        "cScaleLabel1": "#312e81",
+        "cScaleLabel2": "#334155",
+        "cScaleLabel3": "#3b0764",
+        "cScaleLabel4": "#334155",
+    },
+    "暗夜霓虹": {
+        "primaryColor": "#164e63",
+        "primaryTextColor": "#e2e8f0",
+        "primaryBorderColor": "#22d3ee",
+        "secondaryColor": "#1e293b",
+        "secondaryTextColor": "#e2e8f0",
+        "secondaryBorderColor": "#64748b",
+        "tertiaryColor": "#4c1d95",
+        "tertiaryTextColor": "#e2e8f0",
+        "tertiaryBorderColor": "#a78bfa",
+        "lineColor": "#22d3ee",
+        "textColor": "#e2e8f0",
+        "mainBkg": "#164e63",
+        "nodeBorder": "#22d3ee",
+        "clusterBkg": "#0f172a",
+        "clusterBorder": "#22d3ee",
+        "titleColor": "#22d3ee",
+        "edgeLabelBackground": "#111827",
+        "actorBkg": "#164e63",
+        "actorBorder": "#22d3ee",
+        "actorTextColor": "#e2e8f0",
+        "signalColor": "#22d3ee",
+        "signalTextColor": "#e2e8f0",
+        "cScale0": "#164e63",
+        "cScale1": "#701a75",
+        "cScale2": "#1e3a5f",
+        "cScale3": "#4c1d95",
+        "cScale4": "#14532d",
+        "cScaleLabel0": "#e2e8f0",
+        "cScaleLabel1": "#e2e8f0",
+        "cScaleLabel2": "#e2e8f0",
+        "cScaleLabel3": "#e2e8f0",
+        "cScaleLabel4": "#e2e8f0",
+    },
+    "柔和糖果": {
+        "primaryColor": "#fce7f3",
+        "primaryTextColor": "#4a3a44",
+        "primaryBorderColor": "#f9a8d4",
+        "secondaryColor": "#f3e8ff",
+        "secondaryTextColor": "#4a3a44",
+        "secondaryBorderColor": "#d8b4fe",
+        "tertiaryColor": "#fdf2f8",
+        "tertiaryTextColor": "#4a3a44",
+        "tertiaryBorderColor": "#fbcfe8",
+        "lineColor": "#ec4899",
+        "textColor": "#4a3a44",
+        "mainBkg": "#fce7f3",
+        "nodeBorder": "#f9a8d4",
+        "clusterBkg": "#fdf2f8",
+        "clusterBorder": "#fbcfe8",
+        "titleColor": "#be185d",
+        "edgeLabelBackground": "#ffffff",
+        "actorBkg": "#fce7f3",
+        "actorBorder": "#f9a8d4",
+        "actorTextColor": "#4a3a44",
+        "signalColor": "#ec4899",
+        "signalTextColor": "#4a3a44",
+        "cScale0": "#fce7f3",
+        "cScale1": "#f3e8ff",
+        "cScale2": "#fdf2f8",
+        "cScale3": "#ede9fe",
+        "cScale4": "#fff1f2",
+        "cScaleLabel0": "#831843",
+        "cScaleLabel1": "#581c87",
+        "cScaleLabel2": "#831843",
+        "cScaleLabel3": "#3b0764",
+        "cScaleLabel4": "#881337",
+    },
+    "杂志大刊": {
+        "primaryColor": "#f5f5f5",
+        "primaryTextColor": "#111111",
+        "primaryBorderColor": "#111111",
+        "secondaryColor": "#fff7ed",
+        "secondaryTextColor": "#111111",
+        "secondaryBorderColor": "#ea580c",
+        "tertiaryColor": "#e5e5e5",
+        "tertiaryTextColor": "#111111",
+        "tertiaryBorderColor": "#737373",
+        "lineColor": "#111111",
+        "textColor": "#111111",
+        "mainBkg": "#f5f5f5",
+        "nodeBorder": "#111111",
+        "clusterBkg": "#fafafa",
+        "clusterBorder": "#111111",
+        "titleColor": "#111111",
+        "edgeLabelBackground": "#ffffff",
+        "actorBkg": "#f5f5f5",
+        "actorBorder": "#111111",
+        "actorTextColor": "#111111",
+        "signalColor": "#111111",
+        "signalTextColor": "#111111",
+        "cScale0": "#f5f5f5",
+        "cScale1": "#fff7ed",
+        "cScale2": "#e5e5e5",
+        "cScale3": "#ffedd5",
+        "cScale4": "#fafafa",
+        "cScaleLabel0": "#111111",
+        "cScaleLabel1": "#9a3412",
+        "cScaleLabel2": "#111111",
+        "cScaleLabel3": "#9a3412",
+        "cScaleLabel4": "#111111",
+    },
 }
 
 
@@ -368,7 +541,6 @@ _CSS_DISCIPLINE = (
     "阴影或边框样式。\n"
     "4. 字体:不要覆盖 font-family,模版已设好衬线/无衬线策略。\n"
     "做法:先读 set_session 返回的 preset_css,从中提取圆角、配色、阴影规则,逐条对齐。"
-    "能用 ass-* 预设类实现的版式就不要手写 Tailwind 工具类。"
 )
 
 TEMPLATE_GUIDES: dict[str, str] = {
@@ -562,6 +734,23 @@ def template_guide(name: str | None) -> str:
     """取某套模版的排版引导(皮肤气质 + 色盘 + 编排思路 + CSS 纪律);未知/空名回退默认模版。"""
     base = TEMPLATE_GUIDES.get(name or "", TEMPLATE_GUIDES[DEFAULT_TEMPLATE])
     return base + "\n" + _EDITORIAL_TIPS + "\n" + _CSS_DISCIPLINE
+
+
+def mermaid_init_config(name: str | None) -> dict:
+    """取某套模版的完整 mermaid.initialize() 配置(theme + themeVariables)。"""
+    key = name or DEFAULT_TEMPLATE
+    theme = MERMAID_THEMES.get(key, MERMAID_THEMES[DEFAULT_TEMPLATE])
+    theme_vars = MERMAID_THEME_VARS.get(key, MERMAID_THEME_VARS[DEFAULT_TEMPLATE])
+    return {"theme": theme, "themeVariables": theme_vars}
+
+
+def mermaid_configs_json() -> str:
+    """将所有模版的 Mermaid 配置序列化为 JS 对象字面量,供注入 HTML 模板。"""
+    import json
+    configs = {}
+    for key in TEMPLATES:
+        configs[key] = mermaid_init_config(key)
+    return json.dumps(configs, ensure_ascii=False)
 
 
 def image_style_guide(name: str | None) -> str:

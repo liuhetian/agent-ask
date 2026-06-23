@@ -167,8 +167,7 @@ HTML_CONTRACT = """`html` 写法契约:
     height      — 显示高度（CSS 值,如 "200px"）。控制图片和容器的 max-height。
     image-id    — 预上传图片 ID（通过 upload_url 上传后拿到的）。有此属性时**直接显示**,
                   不触发生成。适用于用户已有素材、或外部工具已生成好图片的场景。
-    placeholder — 占位文字。无 prompt 也无 image-id 时显示虚线框 + 此文字,
-                  等用户在画布面板里手动粘贴/生成/指派。不写则默认"等待图片"。
+    placeholder — 占位文字。
   优先级: image-id > 已有指派(跨 render 保留) > prompt(自动生成) > placeholder(纯占位)
   三种典型写法:
     ① 需要 AI 生图:
@@ -177,7 +176,7 @@ HTML_CONTRACT = """`html` 写法契约:
        <img-ai data-ai-id="hero" image-id="abc123"></img-ai>
     ③ 纯占位,等用户操作:
        <img-ai data-ai-id="section-img" placeholder="第二节配图"></img-ai>
-  上传图片(render 之前调,拿 image-id):
+  上传自定义图片(render 之前调,拿 image-id):
     set_session 返回 upload_url(含当前会话 sid),客户端直接 HTTP POST:
       curl -X POST {upload_url} -H "Content-Type: application/json" \
            -d '{"data": "data:image/png;base64,iVBOR...", "label": "素材描述"}'
