@@ -349,6 +349,9 @@ MERMAID_THEMES: dict[str, str] = {
     "杂志大刊": "base",
 }
 
+# cScale0-6 覆盖 7 个色阶;若图表分类超过 7 个,超出部分会回退到 Mermaid 默认彩色。
+# 客户端可在 mermaid 代码块顶部用 %%{init:{"theme":"base","themeVariables":{...}}}%%
+# 自行追加 cScale7+ 来覆盖更多色阶。
 MERMAID_THEME_VARS: dict[str, dict[str, str]] = {
     "报纸": {
         "primaryColor": "#f4ecd8",
@@ -378,11 +381,15 @@ MERMAID_THEME_VARS: dict[str, dict[str, str]] = {
         "cScale2": "#d8cdb5",
         "cScale3": "#f0e4cc",
         "cScale4": "#ebe3cf",
+        "cScale5": "#ddd3ba",
+        "cScale6": "#f7f0de",
         "cScaleLabel0": "#1a1a1a",
         "cScaleLabel1": "#1a1a1a",
         "cScaleLabel2": "#1a1a1a",
         "cScaleLabel3": "#1a1a1a",
         "cScaleLabel4": "#1a1a1a",
+        "cScaleLabel5": "#1a1a1a",
+        "cScaleLabel6": "#1a1a1a",
     },
     "极简白": {
         "primaryColor": "#dbeafe",
@@ -412,11 +419,15 @@ MERMAID_THEME_VARS: dict[str, dict[str, str]] = {
         "cScale2": "#e2e8f0",
         "cScale3": "#ede9fe",
         "cScale4": "#f1f5f9",
+        "cScale5": "#cffafe",
+        "cScale6": "#e0f2fe",
         "cScaleLabel0": "#1e3a5f",
         "cScaleLabel1": "#312e81",
         "cScaleLabel2": "#334155",
         "cScaleLabel3": "#3b0764",
         "cScaleLabel4": "#334155",
+        "cScaleLabel5": "#164e63",
+        "cScaleLabel6": "#0c4a6e",
     },
     "暗夜霓虹": {
         "primaryColor": "#164e63",
@@ -446,11 +457,15 @@ MERMAID_THEME_VARS: dict[str, dict[str, str]] = {
         "cScale2": "#1e3a5f",
         "cScale3": "#4c1d95",
         "cScale4": "#14532d",
+        "cScale5": "#7c2d12",
+        "cScale6": "#1e1b4b",
         "cScaleLabel0": "#e2e8f0",
         "cScaleLabel1": "#e2e8f0",
         "cScaleLabel2": "#e2e8f0",
         "cScaleLabel3": "#e2e8f0",
         "cScaleLabel4": "#e2e8f0",
+        "cScaleLabel5": "#e2e8f0",
+        "cScaleLabel6": "#e2e8f0",
     },
     "柔和糖果": {
         "primaryColor": "#fce7f3",
@@ -480,11 +495,15 @@ MERMAID_THEME_VARS: dict[str, dict[str, str]] = {
         "cScale2": "#fdf2f8",
         "cScale3": "#ede9fe",
         "cScale4": "#fff1f2",
+        "cScale5": "#fae8ff",
+        "cScale6": "#ffe4e6",
         "cScaleLabel0": "#831843",
         "cScaleLabel1": "#581c87",
         "cScaleLabel2": "#831843",
         "cScaleLabel3": "#3b0764",
         "cScaleLabel4": "#881337",
+        "cScaleLabel5": "#86198f",
+        "cScaleLabel6": "#9f1239",
     },
     "杂志大刊": {
         "primaryColor": "#f5f5f5",
@@ -514,11 +533,15 @@ MERMAID_THEME_VARS: dict[str, dict[str, str]] = {
         "cScale2": "#e5e5e5",
         "cScale3": "#ffedd5",
         "cScale4": "#fafafa",
+        "cScale5": "#d4d4d4",
+        "cScale6": "#fed7aa",
         "cScaleLabel0": "#111111",
         "cScaleLabel1": "#9a3412",
         "cScaleLabel2": "#111111",
         "cScaleLabel3": "#9a3412",
         "cScaleLabel4": "#111111",
+        "cScaleLabel5": "#111111",
+        "cScaleLabel6": "#9a3412",
     },
 }
 

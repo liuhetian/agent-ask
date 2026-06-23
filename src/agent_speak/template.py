@@ -84,6 +84,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     --asc-radius:      0px;       /* 壳子圆角 */
     --asc-shadow:      4px 4px 0 var(--asc-on-surface);   /* 工具栏 / 日记本投影 */
     --asc-shadow-lg:   8px 8px 0 var(--asc-on-surface);   /* 弹窗投影 */
+    --asc-dock-w:      290px;     /* 右下角一摞(日记本 / 控制栏 / 设置面板)统一宽度 */
   }
 
   html, body { height: 100%; margin: 0; }
@@ -173,7 +174,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
 
   /* The page itself — only visible while inspect mode is on */
   .nb-page {
-    width: 320px;
+    width: var(--asc-dock-w);
     background: var(--asc-surface);
     border: 2px solid var(--asc-on-surface);
     border-radius: var(--asc-radius);
@@ -342,7 +343,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
   /* Newspaper-stamp toolbar: solid block with hard offset shadow */
   .nb-toolbar {
     display: flex; align-items: stretch;
-    width: auto; min-width: 320px;   /* 展开时向左自然变宽,不挤压内部按钮 */
+    width: var(--asc-dock-w);   /* 与日记本 / 设置面板同宽,右下角对齐成一摞 */
     background: var(--asc-surface);
     border: 2px solid var(--asc-on-surface);
     border-radius: var(--asc-radius);
@@ -355,7 +356,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     background: transparent;
     border: 0;
     border-radius: 0;
-    padding: 10px 17px;
+    padding: 18px 5px;
     font-family: inherit;
     font-size: 12px;
     font-weight: 800;
@@ -363,7 +364,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     letter-spacing: 0.10em;
     color: var(--asc-on-surface);
     cursor: pointer;
-    display: inline-flex; align-items: center; gap: 7px;
+    display: inline-flex; align-items: center; justify-content: center; gap: 5px;
     line-height: 1;
     white-space: nowrap;   /* 永不换行,避免被挤压成两行而抬高整条栏 */
   }
@@ -374,8 +375,10 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     outline-offset: -2px;
   }
 
-  #mode-btn {
-    min-width: 100px;
+  /* 三个主按钮(批注 / 图片 / 发送)等宽:各占 1/3,内容居中 */
+  #mode-btn, #img-panel-btn, #preview-send-btn {
+    flex: 1 1 0;
+    min-width: 0;
     justify-content: center;
   }
   #mode-btn .indicator {
@@ -397,7 +400,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
 
   /* PREVIEW-SEND — the green primary action, fills remaining space */
   #preview-send-btn {
-    flex: 1;
+    flex: 1 1 0; min-width: 0;
     justify-content: center;   /* "发送"二字水平居中 */
     background: var(--asc-send);
     color: var(--asc-surface);
@@ -438,7 +441,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     position: fixed;
     bottom: 62px; right: 16px;
     z-index: 9200;
-    width: 260px;
+    width: var(--asc-dock-w);
     background: var(--asc-surface);
     border: 2px solid var(--asc-on-surface);
     border-radius: var(--asc-radius);
@@ -463,6 +466,49 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     background: var(--asc-field); color: var(--asc-on-surface);
     padding: 4px 8px; font-size: 12px; font-family: inherit; font-weight: 700;
   }
+
+  /* ───── 模拟下拉框(.asc-select):JS 把原生 <select> 隐藏后生成,
+     外观完全跟随壳子主题 token,与导出按钮等控件风格统一 ───── */
+  .asc-select { position: relative; width: 150px; font-family: inherit; }
+  .asc-select .asc-cs-trigger {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    width: 100%;
+    padding: 5px 10px;
+    border: 1px solid var(--asc-on-surface); border-radius: var(--asc-radius);
+    background: var(--asc-field); color: var(--asc-on-surface);
+    font-family: inherit; font-size: 12px; font-weight: 700; line-height: 1.4;
+    text-align: left; cursor: pointer;
+  }
+  .asc-select.open .asc-cs-trigger {
+    border-color: var(--asc-accent);
+    box-shadow: inset 0 0 0 1px var(--asc-accent);
+  }
+  .asc-select .asc-cs-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .asc-select .asc-cs-arrow {
+    flex: none; width: 0; height: 0;
+    border-left: 5px solid transparent; border-right: 5px solid transparent;
+    border-top: 6px solid var(--asc-on-surface);
+    transition: transform 150ms;
+  }
+  .asc-select.open .asc-cs-arrow { transform: rotate(180deg); }
+  .asc-select .asc-cs-menu {
+    position: absolute; left: 0; right: 0; top: calc(100% + 4px);
+    z-index: 30; margin: 0; padding: 0; list-style: none;
+    border: 2px solid var(--asc-on-surface); background: var(--asc-surface);
+    box-shadow: var(--asc-shadow);
+    max-height: 240px; overflow-y: auto; display: none;
+  }
+  .asc-select.open .asc-cs-menu { display: block; }
+  .asc-select .asc-cs-option {
+    padding: 8px 10px; font-size: 12px; font-weight: 700;
+    color: var(--asc-on-surface); cursor: pointer;
+    border-bottom: 1px solid color-mix(in srgb, var(--asc-on-surface) 15%, transparent);
+    white-space: nowrap;
+  }
+  .asc-select .asc-cs-option:last-child { border-bottom: 0; }
+  .asc-select .asc-cs-option.selected { color: var(--asc-accent); }
+  .asc-select .asc-cs-option:hover,
+  .asc-select .asc-cs-option.active { background: var(--asc-on-surface); color: var(--asc-surface); }
 
   /* ───── tutorial modal — newspaper poster with 3 tabs + knockout caps ───── */
   #tutorial-modal {
@@ -729,19 +775,21 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     background: var(--asc-field); color: var(--asc-on-surface);
     padding: 5px 10px; font-size: 13px; font-family: inherit; font-weight: 700;
   }
-  #tutorial-modal .t-export-btn {
+  /* 导出按钮:tutorial-modal 与 settings-panel 共用同一套报纸风样式
+     (此前选择器误限定在 #tutorial-modal 下,设置面板里的按钮拿不到字体) */
+  .t-export-btn {
     background: var(--asc-on-surface); color: var(--asc-surface);
     border: 2px solid var(--asc-on-surface); border-radius: var(--asc-radius);
     padding: 5px 14px; font-family: inherit; font-size: 12px; font-weight: 900;
     text-transform: uppercase; letter-spacing: 0.08em; cursor: pointer;
   }
-  #tutorial-modal .t-export-btn:hover {
+  .t-export-btn:hover {
     background: var(--asc-accent); border-color: var(--asc-accent);
   }
-  #tutorial-modal .t-export-btn:disabled {
+  .t-export-btn:disabled {
     opacity: 0.4; cursor: not-allowed;
   }
-  #tutorial-modal .t-export-btn:disabled:hover {
+  .t-export-btn:disabled:hover {
     background: var(--asc-on-surface); border-color: var(--asc-on-surface);
   }
 
@@ -1551,6 +1599,8 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     modeBtn.classList.toggle('on', isInspecting);
     notebook.classList.toggle('mode-off', !isInspecting);
     modeLabel.textContent = isInspecting ? '批注中' : '批注';
+    // 批注小窗与设置小窗互斥:批注模式开启(批注小窗出现)时收起设置面板
+    if (isInspecting) settingsPanel.classList.add('hidden');
     if (!isInspecting) {
       hideHighlight();
       editingId = null;
@@ -2000,7 +2050,10 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
   const exportBtn = document.getElementById('export-btn');
 
   settingsBtn.addEventListener('click', () => {
+    const willShow = settingsPanel.classList.contains('hidden');
     settingsPanel.classList.toggle('hidden');
+    // 设置小窗与批注小窗互斥:设置弹出时关掉批注模式(批注小窗随之收起)
+    if (willShow && isInspecting) setInspecting(false);
   });
 
   ASS_TEMPLATES.forEach(t => {
@@ -2009,6 +2062,8 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     if (t === assCurrentTemplate) opt.selected = true;
     tplSelect.appendChild(opt);
   });
+  // 把原生 <select> 增强成跟随壳子主题的模拟下拉框(原生框被隐藏,仍作数据源)
+  buildAscSelect(tplSelect);
 
   tplSelect.addEventListener('change', async () => {
     try {
@@ -2027,6 +2082,105 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
 
   function updateExportBtn() {
     exportBtn.disabled = !hasArtifact;
+  }
+
+  // ───── 模拟下拉框:把原生 <select> 增强成跟随主题的列表 ─────
+  function closeAscSelects(except) {
+    document.querySelectorAll('.asc-select.open').forEach(w => {
+      if (w !== except && w._close) w._close();
+    });
+  }
+  document.addEventListener('click', () => closeAscSelects(null));
+
+  function buildAscSelect(sel) {
+    sel.style.display = 'none';
+    const wrap = document.createElement('div');
+    wrap.className = 'asc-select';
+    const trigger = document.createElement('button');
+    trigger.type = 'button';
+    trigger.className = 'asc-cs-trigger';
+    trigger.setAttribute('aria-haspopup', 'listbox');
+    trigger.setAttribute('aria-expanded', 'false');
+    const label = document.createElement('span');
+    label.className = 'asc-cs-label';
+    const arrow = document.createElement('span');
+    arrow.className = 'asc-cs-arrow';
+    trigger.appendChild(label);
+    trigger.appendChild(arrow);
+    const menu = document.createElement('ul');
+    menu.className = 'asc-cs-menu';
+    menu.setAttribute('role', 'listbox');
+
+    let activeIdx = -1;
+    function setActive(i) {
+      const items = menu.children;
+      for (let k = 0; k < items.length; k++) items[k].classList.toggle('active', k === i);
+      activeIdx = i;
+      if (i >= 0 && items[i]) items[i].scrollIntoView({ block: 'nearest' });
+    }
+    // 同步触发器文字与高亮项(也用于外部改值后回填,见 applyStyles)
+    function syncLabel() {
+      const opt = sel.options[sel.selectedIndex];
+      label.textContent = opt ? opt.textContent.trim() : '';
+      const items = menu.children;
+      for (let k = 0; k < items.length; k++) items[k].classList.toggle('selected', k === sel.selectedIndex);
+    }
+    function close() {
+      wrap.classList.remove('open');
+      trigger.setAttribute('aria-expanded', 'false');
+      setActive(-1);
+    }
+    function open() {
+      closeAscSelects(wrap);
+      wrap.classList.add('open');
+      trigger.setAttribute('aria-expanded', 'true');
+      setActive(sel.selectedIndex);
+    }
+    function choose(i) {
+      sel.selectedIndex = i;
+      syncLabel();
+      close();
+      sel.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    wrap._close = close;
+    sel._ascSync = syncLabel;
+
+    Array.prototype.forEach.call(sel.options, (opt, i) => {
+      const li = document.createElement('li');
+      li.className = 'asc-cs-option' + (i === sel.selectedIndex ? ' selected' : '');
+      li.setAttribute('role', 'option');
+      li.textContent = opt.textContent.trim();
+      li.addEventListener('click', (e) => { e.stopPropagation(); choose(i); });
+      menu.appendChild(li);
+    });
+    syncLabel();
+
+    trigger.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (wrap.classList.contains('open')) close(); else open();
+    });
+    trigger.addEventListener('keydown', (e) => {
+      const n = menu.children.length;
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        if (!wrap.classList.contains('open')) { open(); return; }
+        let ni = activeIdx + (e.key === 'ArrowDown' ? 1 : -1);
+        if (ni < 0) ni = 0;
+        if (ni >= n) ni = n - 1;
+        setActive(ni);
+      } else if (e.key === 'Enter' || e.key === ' ') {
+        if (wrap.classList.contains('open')) {
+          e.preventDefault();
+          if (activeIdx >= 0) choose(activeIdx);
+        }
+      } else if (e.key === 'Escape') {
+        close();
+      }
+    });
+
+    wrap.appendChild(trigger);
+    wrap.appendChild(menu);
+    sel.parentNode.insertBefore(wrap, sel.nextSibling);
   }
 
   let previewMouseDownTarget = null;
@@ -2495,7 +2649,11 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     if (d.chrome_css !== undefined) upsertStyleSlot('ass-chrome-vars', d.chrome_css);
     upsertStyleSlot('ass-preset-styles', d.preset_css);
     upsertStyleSlot('ass-session-styles', d.session_css);
-    if (d.template) { assCurrentTemplate = d.template; tplSelect.value = d.template; }
+    if (d.template) {
+      assCurrentTemplate = d.template;
+      tplSelect.value = d.template;
+      if (tplSelect._ascSync) tplSelect._ascSync();   // 回填模拟下拉的显示文字
+    }
   }
   // set_session 单独调用(不跟 render)时热更新样式:只换皮肤,不动 artifact。
   es.addEventListener('styles', (e) => {
