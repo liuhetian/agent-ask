@@ -178,30 +178,78 @@ claude mcp add --transport http agent-ask https://agent-ask.liuhetian.work/mcp
 
 ## Changelog
 
-### v0.3.1rc1 (2026-06-15)
+### v0.4.1 (2026-06-23)
+
+**配图风格建议 & 模版预设拆分**
+
+- `set_session` 新增 `image_style_guide` 返回字段——每套模版配一段建议的图片生成风格(版画 / 扁平矢量 / 赛博霓虹 / 绘本水彩 / 杂志摄影)+ 参考 prompt 关键词,让 AI 写 `<img-ai>` prompt 时图文气质统一。建议而非强制,每张图可按内容灵活调整。
+- `render_html_contract` 的 `<img-ai>` 规范新增"何时用"选型指南:4 类适合场景(概念隐喻图、角色场景插画、体验故事板、系统全景图)+ 不适合场景(需精确数值/对齐的图用 Mermaid/HTML/SVG)。
+- 重构:从 `template.py`(3100+ 行)拆出 `presets.py`(571 行),所有模版预设数据(CSS 皮肤、壳子主题、排版引导、配图风格、Mermaid 主题映射)集中在 `presets.py`,`template.py` 只保留渲染引擎。新增模版只需改 `presets.py`,渲染引擎无需变动。
+
+### v0.4 (2026-06-23)
+
+**代码高亮 & 图表渲染**
+
+- 集成 highlight.js——`<pre><code class="language-xxx">` 自动语法高亮,五套模板各自搭配独立配色方案。
+- 集成 Mermaid.js(按需加载)——`<pre class="mermaid">` 自动渲染为 SVG,支持 flowchart / sequence / gantt / classDiagram 等,每套模板匹配对应 Mermaid 主题。
+
+**导出独立 HTML**
+
+- 新增 `GET /ui/{sid}/export`——后端复用渲染逻辑,生成无 host 壳子的自包含 HTML 文件下载。
+- 导出时 `<img-ai>` 自动转为 base64 data URI 内联,断网可看。
+- 导出 HTML 携带 Tailwind CDN + highlight.js CDN + Mermaid 按需加载,打开即与在线版一致。
+
+**浏览器端模板切换**
+
+- "?"对话框新增第 4 个 tab"设置",含模板下拉切换 + 导出按钮。
+- 新增 `POST /ui/{sid}/switch-template`,切换后 SSE 热刷新,无需 AI 介入。
+- `render_artifact` / `wait_user_feedback` 返回值新增 `template` 字段,AI 能感知用户切了模板。
+
+**img-ai 增强**
+
+- 新增 `size` 属性(1024x1024 / 1536x1024 / 1024x1536 / auto),控制生图尺寸。
+- 新增 `width` / `height` 属性,控制图片显示大小(去掉了之前写死的 512px 上限)。
+- `prompt` 属性约束语言与报告正文一致(中文报告写中文 prompt)。
+
+**契约更新**
+
+- `render_html_contract` 补充代码块(`<pre><code>`)和 Mermaid(`<pre class="mermaid">`)写法约定。
+- `render_html_contract` 补充 `<img-ai>` 的 `size` / `width` / `height` 属性说明。
+
+### v0.3 (2026-06-15)
 
 **新功能:图片画布(`<img-ai>` 元素)**
 
 - 新增 `<img-ai>` 自定义元素——AI 只写声明式标签,host 接管图片的生成、显示、选择和编辑。
 - 三种用法:带 `prompt` 自动生成、带 `image-id` 直接显示预上传图片、纯 `placeholder` 占位等用户操作。
-- 图片画布弹窗:右下角工具栏"🎨 图片"按钮打开全屏居中弹窗(与预览弹窗同级),支持输入提示词生成、粘贴/拖放上传、左键选定、右键设参考图、指派到任意 `<img-ai>` 槽位。
-- 非阻塞生成:点击生成后立刻显示占位卡片(spinner + 提示词),不阻塞 UI,可连续换提示词发起多批生成。
-- 共享图片池:所有生成/上传/粘贴的图片跨 render 保留,同一 `data-ai-id` 的图片指派也跨 render 保持。
-- 后端新增 `/api/{sid}/generate`、`/api/{sid}/upload`、`/api/{sid}/assign-image`、`/api/{sid}/image-pool`、`/assets/{sid}/{image_id}.png` 路由,支持 OpenAI 兼容的图片生成 API(通过 `OPENAI_API_KEY` / `OPENAI_BASE_URL` 配置)。
-- `set_session` 返回值新增 `upload_url`,供 AI 在 render 前上传素材图片。
-- `render_artifact` 的 HTML 契约新增 `<img-ai>` 的完整写法说明。
-- 提交反馈 payload 新增 `image_results` 字段,包含每张被选中图片的 `ai_id`、`image_id`、`url`、`prompt`、`source`。
+- 图片画布弹窗:支持输入提示词生成、粘贴/拖放上传、左键选定、右键设参考图、指派到任意槽位。
+- 后端新增 `/api/{sid}/generate`、`/api/{sid}/upload`、`/api/{sid}/assign-image`、`/api/{sid}/image-pool`、`/assets/{sid}/{image_id}.png` 路由,支持 OpenAI 兼容的图片生成 API。
+- 提交反馈 payload 新增 `image_results` 字段。
 
 **UI 改进**
 
-- 工具栏按钮合并:"预览"和"发送"合并为"预览并发送",统一走预览弹窗确认流程。
-- 批注/图片/预览三面板互斥:打开一个自动关闭其他,不再出现面板重叠。
-- 批注面板与工具栏等宽对齐(固定 320px),toolbar 按钮圆角由外层 `overflow: hidden` 统一裁切。
-- 批注开关按钮固定 `min-width`,切换"批注/批注中"文字时宽度不再跳动。
+- "预览"和"发送"合并为"预览并发送",统一走预览弹窗确认流程。
+- 批注/图片/预览三面板互斥,不再重叠。
+- 修复弹窗在拖选文字时意外关闭的问题。
 
-**Bug 修复**
+### v0.2 (2026-06-09)
 
-- 修复所有弹窗(图片/预览/教程)在拖选文字时意外关闭的问题——改为追踪 `mousedown` 起点,只有 mousedown 和 mouseup 都在遮罩上才触发关闭。
+**多模板系统 & 壳子主题**
+
+- 五套内置模板:报纸(默认)、极简白、暗夜霓虹、柔和糖果、杂志大刊。
+- 统一 `ass-*` 语义类——换模板时 AI 的 HTML 一个字都不用改。
+- 壳子主题(host chrome themes):右下角工具栏/日记本/弹窗跟内容区同步换肤。
+- `set_session` 返回模板排版引导 + CSS 纪律,让 AI 知道"怎么排才好看"。
+- 自定义 CSS 注册(`set_session(css=...)`)+ 热更新(不重渲染 artifact)。
+
+### v0.1 (2026-05-18)
+
+**初版:核心交互闭环**
+
+- 三件套 MCP 工具:`set_session` / `render_artifact` / `wait_user_feedback`。
+- AI 写纯静态 HTML → 推到浏览器 → 用户批注 + 填表 → 结构化反馈回传。
+- 浏览器壳子:自动锚点、悬停高亮、批注日记本、表单收集、SSE 实时推送。
+- 同步阻塞等反馈设计——一次 `render_artifact` 调用完成"推 + 收"。
 
 ## 感谢
 

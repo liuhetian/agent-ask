@@ -27,14 +27,14 @@ from fastmcp import Context, FastMCP
 from fastmcp.exceptions import ToolError
 
 from .session import CONFIG, SESSIONS, get_or_create, stdio_sid
-from .template import (
+from .presets import (
     TEMPLATES,
     chrome_vars_css,
-    compose_styles_css,
-    parse_css_rules,
+    image_style_guide,
     template_css,
     template_guide,
 )
+from .template import compose_styles_css, parse_css_rules
 
 
 logger = logging.getLogger("agent_speak.server")
@@ -82,7 +82,7 @@ def _finalize(state) -> dict[str, Any]:
 REGISTER_DOC = """**渲染html第一步(必做)**:选定页面皮肤,拿到要交给用户打开的 URL,
 并取得 render_artifact 的 html 写法契约。
 
-做五件事:
+做六件事:
   1. 选皮肤——`template` 选一套内置模版(**默认且推荐 "报纸"**),
      和/或 `css` 注册你自己的命名类。
   2. 返回 `url`:**把它交给用户,让他现在就打开**——页面会先显示"等待内容中",
@@ -93,6 +93,9 @@ REGISTER_DOC = """**渲染html第一步(必做)**:选定页面皮肤,拿到要�
      (语义类清单、data-ai-id 锚点、提交规则)——**render 之前务必照它写**。
   5. 返回 `template_guide`:这套模版适合什么内容、版面节奏怎么排(长材料的
      层级 / 重心 / 留白思路)——照着它编排,别只是套对类名。
+  6. 返回 `image_style_guide`:这套模版建议的配图风格(版画 / 扁平矢量 / 赛博 /
+     水彩 / 摄影等)+ 参考 prompt 关键词。写 `<img-ai>` 的 prompt 时参考,
+     让图文气质统一——**建议而非强制**,每张图可按内容需要灵活调整。
 
 参数:
   • template:模版名,二选一地传。可选值见返回的 `available_templates`,
@@ -159,6 +162,9 @@ HTML_CONTRACT = """`html` 写法契约:
   属性:
     data-ai-id  — 必填。稳定标识,跨 render 保留已选图片。
     prompt      — 生图提示词,**语言与报告正文保持一致**(中文报告写中文 prompt)。有 prompt 时 host **自动生成**并在占位区显示加载动画。
+    size        — 生图尺寸,可选 1024x1024(默认）/ 1536x1024（横版）/ 1024x1536（竖版）/ auto。
+    width       — 显示宽度（CSS 值,如 "300px" / "100%"）。控制图片和容器的 max-width。
+    height      — 显示高度（CSS 值,如 "200px"）。控制图片和容器的 max-height。
     image-id    — 预上传图片 ID（通过 upload_url 上传后拿到的）。有此属性时**直接显示**,
                   不触发生成。适用于用户已有素材、或外部工具已生成好图片的场景。
     placeholder — 占位文字。无 prompt 也无 image-id 时显示虚线框 + 此文字,
@@ -184,6 +190,17 @@ HTML_CONTRACT = """`html` 写法契约:
     • 用户可随时通过右下角「🎨 图片」按钮打开画布面板,在所有图片的共享池里
       生成新变体、粘贴/拖放外部图片、右键选参考图编辑、指派到任意槽位。
     • 提交时 feedback 里的 image_results 会告知每个槽位最终用了哪张图及其 prompt。
+  何时用 <img-ai>(选型指南):
+    适合的场景:
+      ① 概念隐喻图——用视觉比喻解释抽象机制,一张图秒懂文字要读三遍才明白的逻辑。
+      ② 角色/场景插画——展示"谁在做什么",画出用户看到的具体场景。
+      ③ 体验故事板——漫画分镜式展示用户旅程,多帧串联完整流程。
+      ④ 系统全景图——用等距/扁平风画出各模块之间的关系,给非技术人员看整体架构。
+    不适合的场景:
+      任何需要精确数值、精确时间刻度、精确对齐的图(时间线、甘特图、流程图、
+      状态机、表格对比)。AI 生图画不准数字和文字排版,这类图用代码生成
+      (Mermaid、HTML/CSS、SVG)更靠谱。
+    一句话:AI 生图擅长"让人秒懂感觉",不擅长"让人核对细节"。
 """
 
 
@@ -261,6 +278,7 @@ async def set_session(
         "connected": connected,
         "render_html_contract": HTML_CONTRACT,
         "template_guide": template_guide(state.template),
+        "image_style_guide": image_style_guide(state.template),
         "next_step": next_step,
     }
 

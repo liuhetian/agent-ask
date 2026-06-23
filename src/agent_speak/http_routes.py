@@ -11,14 +11,8 @@ from starlette.responses import HTMLResponse, JSONResponse, Response, StreamingR
 from starlette.routing import Route
 
 from .session import CONFIG, SESSIONS, PoolImage, SSEClient, get_or_create
-from .template import (
-    TEMPLATES,
-    chrome_vars_css,
-    compose_styles_css,
-    export_html,
-    render_html,
-    template_css,
-)
+from .presets import TEMPLATES, chrome_vars_css, template_css
+from .template import compose_styles_css, export_html, render_html
 
 
 logger = logging.getLogger("agent_speak.http")
@@ -127,6 +121,26 @@ async def ui_switch_template(request: Request) -> JSONResponse:
     return JSONResponse({"ok": True, "template": name})
 
 
+def _inline_images(html: str, state) -> str:
+    """把 <img-ai data-ai-id="x"> 替换为 <img src="data:image/png;base64,...">。"""
+    import re
+    def _replace(m):
+        full = m.group(0)
+        aid_m = re.search(r'data-ai-id=["\']([^"\']+)["\']', full)
+        if not aid_m:
+            return full
+        aid = aid_m.group(1)
+        image_id = state.image_assignments.get(aid)
+        if not image_id:
+            return full
+        img = state.image_pool.get(image_id)
+        if not img:
+            return full
+        b64 = base64.b64encode(img.png_bytes).decode()
+        return f'<img src="data:image/png;base64,{b64}" alt="{aid}" style="max-width:100%;height:auto">'
+    return re.sub(r'<img-ai\b[^>]*>.*?</img-ai>|<img-ai\b[^>]*/>', _replace, html, flags=re.DOTALL)
+
+
 async def ui_export(request: Request) -> Response:
     sid = request.path_params["sid"]
     state = SESSIONS.get(sid)
@@ -134,8 +148,9 @@ async def ui_export(request: Request) -> Response:
         return Response("session not found", status_code=404)
     if not state.artifact_html:
         return Response("no artifact to export", status_code=404)
+    artifact = _inline_images(state.artifact_html, state)
     html = export_html(
-        html=state.artifact_html,
+        html=artifact,
         preset_css=template_css(state.template),
         session_css=compose_styles_css(state.styles),
         template_name=state.template,
