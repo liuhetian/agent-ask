@@ -62,7 +62,6 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,__FAVICON_B64__">
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/highlight.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/turndown@7.2.0/dist/turndown.js"></script>
 <style>
   /* ───── host 壳子(右下角工具栏 / 日记本 / 弹窗 / 遮罩)的主题 token ─────
      这里是默认值(报纸风)。set_session 选模版时,#ass-chrome-vars 槽会注入
@@ -526,7 +525,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
   .asc-select .asc-cs-option.active { background: var(--asc-on-surface); color: var(--asc-surface); }
 
   /* 导出按钮:与上方下拉框同宽(150)同高(32),两栏右侧控件左右边缘对齐 */
-  #export-btn, #copy-md-btn {
+  #export-btn {
     box-sizing: border-box;
     width: 150px; height: 32px;
     display: inline-flex; align-items: center; justify-content: center;
@@ -1323,10 +1322,6 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     <label>导出</label>
     <button class="t-export-btn" id="export-btn" type="button" disabled>下载 HTML</button>
   </div>
-  <div class="sp-row">
-    <label>复制</label>
-    <button class="t-export-btn" id="copy-md-btn" type="button" disabled>复制 Markdown</button>
-  </div>
 </div>
 <div id="preview-modal" class="hidden">
   <div class="modal-card">
@@ -1526,7 +1521,6 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
   let hasArtifact = false;
   let isInspecting = true;   // 批注模式常开
   let editingId = null;
-  let rawArtifactHtml = null;
 
   // ───── img-ai state ─────
   const imgPanelBtn = document.getElementById('img-panel-btn');
@@ -1876,7 +1870,6 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     window.mermaid.initialize({ startOnLoad: false, ...cfg });
     const nodes = mermaidNodes();
     if (nodes.length === 0) return;
-    nodes.forEach(n => { if (!n.getAttribute('data-mermaid-src')) n.setAttribute('data-mermaid-src', n.textContent); });
     window.mermaid.run({ nodes: nodes }).catch(err => {
       console.error('mermaid.run() failed', err);
       mermaidNodes().forEach(n => showMermaidError(n, String(err)));
@@ -1885,7 +1878,6 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
 
   // ───── artifact render ─────
   function renderArtifact(html) {
-    rawArtifactHtml = html;
     container.innerHTML = html;
     sanitizeInjected();
     ensureAnchors();
@@ -2120,90 +2112,8 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     if (hasArtifact) window.open(`/ui/${SID}/export`, '_blank');
   });
 
-  const copyMdBtn = document.getElementById('copy-md-btn');
-  copyMdBtn.addEventListener('click', () => {
-    if (!hasArtifact || !rawArtifactHtml) return;
-    if (typeof TurndownService === 'undefined') {
-      copyMdBtn.textContent = '加载中…';
-      setTimeout(() => { copyMdBtn.textContent = '复制 Markdown'; }, 1500);
-      return;
-    }
-    const td = new TurndownService({
-      headingStyle: 'atx',
-      codeBlockStyle: 'fenced',
-      bulletListMarker: '-',
-      emDelimiter: '*',
-    });
-    td.addRule('mermaid', {
-      filter: function(node) {
-        return node.tagName === 'PRE' && node.classList.contains('mermaid');
-      },
-      replacement: function(content, node) {
-        var src = node.getAttribute('data-mermaid-src') || node.textContent || '';
-        return '\n```mermaid\n' + src.trim() + '\n```\n\n';
-      }
-    });
-    td.addRule('imgAi', {
-      filter: function(node) { return node.tagName === 'IMG-AI'; },
-      replacement: function(content, node) {
-        var alt = node.getAttribute('data-ai-id') || 'image';
-        var img = node.querySelector('img');
-        var src = img ? img.getAttribute('src') || '' : '';
-        if (src.startsWith('data:')) src = '';
-        return '![' + alt + '](' + src + ')';
-      }
-    });
-    td.addRule('table', {
-      filter: 'table',
-      replacement: function(content, node) {
-        var rows = Array.from(node.querySelectorAll('tr'));
-        if (!rows.length) return content;
-        var hasHead = !!node.querySelector('thead');
-        var matrix = rows.map(function(r) {
-          return Array.from(r.querySelectorAll('th, td')).map(function(c) {
-            return c.textContent.trim().replace(/\|/g, '\\|').replace(/\n/g, ' ');
-          });
-        });
-        if (!matrix.length || !matrix[0].length) return content;
-        var cols = Math.max.apply(null, matrix.map(function(r){ return r.length; }));
-        matrix.forEach(function(r){ while(r.length < cols) r.push(''); });
-        var lines = [];
-        matrix.forEach(function(row, ri) {
-          lines.push('| ' + row.join(' | ') + ' |');
-          if (ri === 0) {
-            lines.push('| ' + row.map(function(){ return '---'; }).join(' | ') + ' |');
-          }
-        });
-        return '\n' + lines.join('\n') + '\n\n';
-      }
-    });
-    td.addRule('skipTableParts', {
-      filter: ['thead', 'tbody', 'tfoot', 'tr', 'th', 'td'],
-      replacement: function(content) { return content; }
-    });
-    var tmp = document.createElement('div');
-    tmp.innerHTML = rawArtifactHtml;
-    tmp.querySelectorAll('[data-ai-id]').forEach(function(el){ el.removeAttribute('data-ai-id'); });
-    tmp.querySelectorAll('[data-as-annotated]').forEach(function(el){ el.removeAttribute('data-as-annotated'); });
-    var md = td.turndown(tmp);
-    md = md.replace(/\n{3,}/g, '\n\n').trim() + '\n';
-    navigator.clipboard.writeText(md).then(function() {
-      copyMdBtn.textContent = '已复制 ✓';
-      setTimeout(function(){ copyMdBtn.textContent = '复制 Markdown'; }, 1500);
-    }, function() {
-      var blob = new Blob([md], {type: 'text/plain'});
-      var url = URL.createObjectURL(blob);
-      var a = document.createElement('a');
-      a.href = url; a.download = 'export.md'; a.click();
-      URL.revokeObjectURL(url);
-      copyMdBtn.textContent = '已下载 ✓';
-      setTimeout(function(){ copyMdBtn.textContent = '复制 Markdown'; }, 1500);
-    });
-  });
-
   function updateExportBtn() {
     exportBtn.disabled = !hasArtifact;
-    copyMdBtn.disabled = !hasArtifact;
   }
 
   // ───── 模拟下拉框:把原生 <select> 增强成跟随主题的列表 ─────
