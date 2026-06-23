@@ -174,6 +174,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
 
   /* The page itself — only visible while inspect mode is on */
   .nb-page {
+    box-sizing: border-box;
     width: var(--asc-dock-w);
     background: var(--asc-surface);
     border: 2px solid var(--asc-on-surface);
@@ -343,7 +344,8 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
   /* Newspaper-stamp toolbar: solid block with hard offset shadow */
   .nb-toolbar {
     display: flex; align-items: stretch;
-    width: var(--asc-dock-w);   /* 与日记本 / 设置面板同宽,右下角对齐成一摞 */
+    box-sizing: border-box;
+    width: fit-content;   /* 随按钮数量伸缩;右对齐 → 展开时向左加长(日记本/设置面板用 JS 跟随其宽度) */
     background: var(--asc-surface);
     border: 2px solid var(--asc-on-surface);
     border-radius: var(--asc-radius);
@@ -375,10 +377,9 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     outline-offset: -2px;
   }
 
-  /* 三个主按钮(批注 / 图片 / 发送)等宽:各占 1/3,内容居中 */
+  /* 三个主按钮(批注 / 图片 / 发送)固定等宽,不随展开收起伸缩,始终稳定不被挤压 */
   #mode-btn, #img-panel-btn, #preview-send-btn {
-    flex: 1 1 0;
-    min-width: 0;
+    flex: 0 0 84px;
     justify-content: center;
   }
   #mode-btn .indicator {
@@ -400,7 +401,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
 
   /* PREVIEW-SEND — the green primary action, fills remaining space */
   #preview-send-btn {
-    flex: 1 1 0; min-width: 0;
+    flex: 0 0 84px;
     justify-content: center;   /* "发送"二字水平居中 */
     background: var(--asc-send);
     color: var(--asc-surface);
@@ -441,6 +442,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     position: fixed;
     bottom: 62px; right: 16px;
     z-index: 9200;
+    box-sizing: border-box;
     width: var(--asc-dock-w);
     background: var(--asc-surface);
     border: 2px solid var(--asc-on-surface);
@@ -470,10 +472,12 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
   /* ───── 模拟下拉框(.asc-select):JS 把原生 <select> 隐藏后生成,
      外观完全跟随壳子主题 token,与导出按钮等控件风格统一 ───── */
   .asc-select { position: relative; width: 150px; font-family: inherit; }
+  /* trigger 与导出按钮统一为 32px 高(box-sizing 含边框),两栏等高 */
   .asc-select .asc-cs-trigger {
     display: flex; align-items: center; justify-content: space-between; gap: 8px;
-    width: 100%;
-    padding: 5px 10px;
+    box-sizing: border-box;
+    width: 100%; height: 32px;
+    padding: 0 10px;
     border: 1px solid var(--asc-on-surface); border-radius: var(--asc-radius);
     background: var(--asc-field); color: var(--asc-on-surface);
     font-family: inherit; font-size: 12px; font-weight: 700; line-height: 1.4;
@@ -491,14 +495,24 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     transition: transform 150ms;
   }
   .asc-select.open .asc-cs-arrow { transform: rotate(180deg); }
+  /* 面板在右下角,菜单向上展开(bottom 锚定 trigger 顶边),避免被视口底部裁掉;无阴影 */
   .asc-select .asc-cs-menu {
-    position: absolute; left: 0; right: 0; top: calc(100% + 4px);
+    position: absolute; left: 0; right: 0; bottom: calc(100% + 4px);
     z-index: 30; margin: 0; padding: 0; list-style: none;
     border: 2px solid var(--asc-on-surface); background: var(--asc-surface);
-    box-shadow: var(--asc-shadow);
     max-height: 240px; overflow-y: auto; display: none;
+    scrollbar-width: thin; scrollbar-color: var(--asc-on-surface) var(--asc-surface);
   }
   .asc-select.open .asc-cs-menu { display: block; }
+  /* 模拟滚动条:跟随主题墨色 */
+  .asc-select .asc-cs-menu::-webkit-scrollbar { width: 10px; }
+  .asc-select .asc-cs-menu::-webkit-scrollbar-track {
+    background: var(--asc-surface); border-left: 2px solid var(--asc-on-surface);
+  }
+  .asc-select .asc-cs-menu::-webkit-scrollbar-thumb {
+    background: var(--asc-on-surface); border: 2px solid var(--asc-surface);
+  }
+  .asc-select .asc-cs-menu::-webkit-scrollbar-thumb:hover { background: var(--asc-accent); }
   .asc-select .asc-cs-option {
     padding: 8px 10px; font-size: 12px; font-weight: 700;
     color: var(--asc-on-surface); cursor: pointer;
@@ -509,6 +523,14 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
   .asc-select .asc-cs-option.selected { color: var(--asc-accent); }
   .asc-select .asc-cs-option:hover,
   .asc-select .asc-cs-option.active { background: var(--asc-on-surface); color: var(--asc-surface); }
+
+  /* 导出按钮:与上方下拉框同宽(150)同高(32),两栏右侧控件左右边缘对齐 */
+  #export-btn {
+    box-sizing: border-box;
+    width: 150px; height: 32px;
+    display: inline-flex; align-items: center; justify-content: center;
+    padding: 0 14px;
+  }
 
   /* ───── tutorial modal — newspaper poster with 3 tabs + knockout caps ───── */
   #tutorial-modal {
@@ -1280,15 +1302,15 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     </div>
   </div>
   <div class="nb-toolbar">
+    <button id="more-btn" type="button" title="更多" aria-label="更多">›</button>
+    <button id="help-btn" class="nb-extra" type="button" title="使用教程" aria-label="帮助">?</button>
+    <button id="settings-btn" class="nb-extra" type="button" title="设置" aria-label="设置">⚙</button>
     <button id="mode-btn" class="on" type="button" title="批注模式开关">
       <span class="indicator"></span>
       <span id="mode-label">批注中</span>
     </button>
     <button id="img-panel-btn" class="disabled" type="button" title="图片画布">🎨 图片 <span id="img-count">0</span></button>
     <button id="preview-send-btn" type="button" disabled title="发送给 AI">发送</button>
-    <button id="help-btn" class="nb-extra" type="button" title="使用教程" aria-label="帮助">?</button>
-    <button id="settings-btn" class="nb-extra" type="button" title="设置" aria-label="设置">⚙</button>
-    <button id="more-btn" type="button" title="更多" aria-label="更多">‹</button>
   </div>
 </div>
 <div id="settings-panel" class="hidden">
@@ -2042,6 +2064,16 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     toolbar.classList.toggle('expanded');
     if (!expanding) settingsPanel.classList.add('hidden');
   });
+
+  // 控制栏宽度随展开/收起伸缩;日记本与设置面板用 --asc-dock-w 跟随其实时宽度,
+  // 始终右对齐成一摞(三者都 box-sizing:border-box,故 width=控制栏 offsetWidth 即总宽相等)。
+  if (window.ResizeObserver) {
+    const syncDockWidth = () => {
+      const w = toolbar.offsetWidth;
+      if (w) document.documentElement.style.setProperty('--asc-dock-w', w + 'px');
+    };
+    new ResizeObserver(syncDockWidth).observe(toolbar);
+  }
 
   // ───── settings panel (⚙ button) ─────
   const settingsBtn = document.getElementById('settings-btn');
