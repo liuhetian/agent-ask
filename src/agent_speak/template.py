@@ -342,7 +342,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
   /* Newspaper-stamp toolbar: solid block with hard offset shadow */
   .nb-toolbar {
     display: flex; align-items: stretch;
-    width: 320px;
+    width: auto; min-width: 320px;   /* 展开时向左自然变宽,不挤压内部按钮 */
     background: var(--asc-surface);
     border: 2px solid var(--asc-on-surface);
     border-radius: var(--asc-radius);
@@ -365,6 +365,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     cursor: pointer;
     display: inline-flex; align-items: center; gap: 7px;
     line-height: 1;
+    white-space: nowrap;   /* 永不换行,避免被挤压成两行而抬高整条栏 */
   }
   .nb-toolbar button:hover { background: color-mix(in srgb, var(--asc-on-surface) 8%, transparent); }
   .nb-toolbar button:focus { outline: none; }
@@ -397,6 +398,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
   /* PREVIEW-SEND — the green primary action, fills remaining space */
   #preview-send-btn {
     flex: 1;
+    justify-content: center;   /* "发送"二字水平居中 */
     background: var(--asc-send);
     color: var(--asc-surface);
   }
@@ -933,8 +935,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     display: block;
     position: relative;
     min-height: 120px;
-    background: color-mix(in srgb, var(--asc-on-surface, #1a1a1a) 5%, transparent);
-    border: 2px dashed color-mix(in srgb, var(--asc-on-surface, #1a1a1a) 20%, transparent);
+    border: 1px solid color-mix(in srgb, var(--asc-on-surface, #1a1a1a) 12%, transparent);
     overflow: hidden;
   }
   img-ai img {
@@ -1237,9 +1238,9 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     </button>
     <button id="img-panel-btn" class="disabled" type="button" title="图片画布">🎨 图片 <span id="img-count">0</span></button>
     <button id="preview-send-btn" type="button" disabled title="发送给 AI">发送</button>
-    <button id="more-btn" type="button" title="更多" aria-label="更多">›</button>
-    <button id="settings-btn" class="nb-extra" type="button" title="设置" aria-label="设置">⚙</button>
     <button id="help-btn" class="nb-extra" type="button" title="使用教程" aria-label="帮助">?</button>
+    <button id="settings-btn" class="nb-extra" type="button" title="设置" aria-label="设置">⚙</button>
+    <button id="more-btn" type="button" title="更多" aria-label="更多">‹</button>
   </div>
 </div>
 <div id="settings-panel" class="hidden">
