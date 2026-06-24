@@ -1,6 +1,6 @@
 [project]
 name = "agent-speak"
-version = "0.4.1dev2"
+version = "0.5.1dev1"
 description = "Let LLMs talk back with rich HTML instead of markdown."
 readme = "README.md"
 requires-python = ">=3.13"
