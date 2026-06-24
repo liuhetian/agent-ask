@@ -35,7 +35,7 @@ _NEWSPAPER_CSS = """
   .artifact-root .ass-h1       { @apply text-2xl font-black uppercase tracking-wide text-[#1a1a1a] mb-3 pb-2 border-b-[3px] border-double border-[#1a1a1a]; }
   .artifact-root .ass-h2       { @apply text-lg font-black uppercase tracking-wide text-[#1a1a1a] mb-2; }
   .artifact-root .ass-hint     { @apply text-xs italic text-[#6b6b6b]; }
-  .artifact-root .ass-code     { @apply font-mono text-sm bg-[#1a1a1a] text-[#f4ecd8] px-1.5 py-0.5 rounded-none; }
+  .artifact-root .ass-code     { @apply font-mono text-sm bg-[#2c2416] text-[#f4ecd8] px-1.5 py-0.5 rounded-none; }
   .artifact-root .ass-kbd      { @apply font-mono text-xs bg-[#fffaf0] border border-[#1a1a1a] rounded-none px-1.5 py-0.5; }
   .artifact-root .ass-divider  { @apply border-t-[3px] border-double border-[#1a1a1a] my-4; }
 
@@ -62,7 +62,7 @@ _NEWSPAPER_CSS = """
 
   /* —— Code Blocks (highlight.js) —— */
   .artifact-root pre { margin: 1em 0; }
-  .artifact-root pre code.hljs { display: block; padding: 1em; overflow-x: auto; background: #1a1a1a; color: #f4ecd8; border: 2px solid #1a1a1a; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.875rem; line-height: 1.7; }
+  .artifact-root pre code.hljs { display: block; padding: 1em; overflow-x: auto; background: #2c2416; color: #f4ecd8; border: 2px solid #3a2e1c; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.875rem; line-height: 1.7; }
   .artifact-root .hljs-keyword,
   .artifact-root .hljs-selector-tag { color: #e07b53; font-weight: bold; }
   .artifact-root .hljs-string,

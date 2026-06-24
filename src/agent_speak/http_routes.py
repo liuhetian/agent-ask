@@ -400,6 +400,44 @@ async def asset_serve(request: Request) -> Response:
     )
 
 
+# render body 上限:正常 artifact 几十 KB,2MB 已是极宽裕的冗余;挡住失控/恶意的巨大 POST。
+# 注意:这是「读完才查」的应用层守卫,挡诚实声明的大请求;真正的 DoS 防护应在反向代理层
+# client_max_body_size(请求就进不了进程)。
+MAX_RENDER_BYTES = 2 * 1024 * 1024
+
+
+async def api_render(request: Request) -> JSONResponse:
+    """POST /api/{sid}/render — 带外上传 artifact 的 HTML 原文(curl --data-binary @file),
+    推送到页面并同步阻塞等用户提交,响应体直接返回 feedback。对应 MCP render_artifact
+    的 html= 路径,用于长内容增量编辑(下载→Edit→上传)时省掉重发整份 HTML 的输出 token。
+    与 render_artifact 共用 _render_and_wait 核心,只是 sid 来自 URL、报错走 HTTP 500。
+    """
+    from .server import _render_and_wait  # 延迟 import,避免模块加载顺序耦合
+
+    sid = request.path_params["sid"]
+    clen = request.headers.get("content-length")
+    if clen and clen.isdigit() and int(clen) > MAX_RENDER_BYTES:
+        return JSONResponse({"ok": False, "error": "html too large"}, status_code=413)
+    body = await request.body()
+    if len(body) > MAX_RENDER_BYTES:
+        return JSONResponse({"ok": False, "error": "html too large"}, status_code=413)
+    html = body.decode("utf-8", errors="replace")
+    if not html.strip():
+        return JSONResponse({"ok": False, "error": "empty html body"}, status_code=400)
+    result = await _render_and_wait(sid, html)
+    return JSONResponse(result, status_code=500 if result.get("error") else 200)
+
+
+async def api_artifact(request: Request) -> Response:
+    """GET /api/{sid}/artifact — 返回当前 artifact 的 HTML 原文(AI 原始输入,
+    非 /export 的图片内联成品),供客户端 curl 下载到本地做增量 Edit。"""
+    sid = request.path_params["sid"]
+    state = SESSIONS.get(sid)
+    if state is None or not state.artifact_html:
+        return Response("no artifact", status_code=404)
+    return Response(content=state.artifact_html, media_type="text/html; charset=utf-8")
+
+
 ROUTES: list[Route] = [
     Route("/ui/{sid}", ui_root, methods=["GET"]),
     Route("/ui/{sid}/events", ui_events, methods=["GET"]),
@@ -409,6 +447,8 @@ ROUTES: list[Route] = [
     Route("/ui/{sid}/error", ui_error, methods=["POST"]),
     Route("/api/{sid}/generate", api_image_generate, methods=["POST"]),
     Route("/api/{sid}/upload", api_image_upload, methods=["POST"]),
+    Route("/api/{sid}/render", api_render, methods=["POST"]),
+    Route("/api/{sid}/artifact", api_artifact, methods=["GET"]),
     Route("/api/{sid}/assign-image", api_image_assign, methods=["POST"]),
     Route("/api/{sid}/image-pool", api_image_pool, methods=["GET"]),
     Route("/assets/{sid}/{filename}", asset_serve, methods=["GET"]),

@@ -209,6 +209,8 @@ RENDER_DOC = """把一份 UI artifact 推给用户,并**同步阻塞**等他提�
 
 参数:
   • html:纯 HTML 字符串,**写法见 set_session 返回的 `render_html_contract`**。
+
+返回里若带 `long_content_hint`:照它走(内容长时才出现的省 token 增量编辑引导)。
 """
 
 
@@ -269,6 +271,8 @@ async def set_session(
         "sid": sid,
         "url": _url(sid),
         "upload_url": f"{base}/api/{sid}/upload",
+        "render_url": f"{base}/api/{sid}/render",
+        "artifact_url": f"{base}/api/{sid}/artifact",
         "template": state.template,
         "available_templates": list(TEMPLATES),
         "preset_css": template_css(state.template),
@@ -283,14 +287,16 @@ async def set_session(
 
 
 RENDER_WAIT_SECONDS = 180  # 推送后同步阻塞等用户提交的固定时长。
+RENDER_LONG_THRESHOLD = 8000  # len(html) ≥ 此值,render 返回里附带切 curl 增量工作流的引导。
 
 
-@mcp.tool(description=RENDER_DOC)
-async def render_artifact(
-    html: str,
-    ctx: Context,
-) -> dict[str, Any]:
-    sid = ctx.session_id or stdio_sid()
+async def _render_and_wait(sid: str, html: str) -> dict[str, Any]:
+    """存 + 归档 + 推 SSE + 同步阻塞等提交。MCP render_artifact 与 HTTP POST /render 共用。
+
+    不抛异常:浏览器侧渲染报错(ui_error)以返回 dict 的 "error" 字段传出,由各入口
+    自行决定上报方式(MCP 抛 ToolError / HTTP 返回 500)。读出 error 后即清空
+    state.error,避免随后的 wait_user_feedback 重复报同一个错。
+    """
     state = get_or_create(sid)
 
     state.artifact_html = html
@@ -301,8 +307,7 @@ async def render_artifact(
 
     _archive_artifact(sid, html)  # 归档保留原文,可回放 AI 原始输入
 
-    connected = state.sse_writer is not None
-    if not connected:
+    if state.sse_writer is None:
         # 页面还没连上,堵塞等待毫无意义(用户根本看不到 artifact、不可能提交)。
         # artifact 已缓存,用户之后打开/重连 URL 时 ui_events 会自动补推,所以这里
         # 不等待,立即返回 pending,让 AI 去提醒用户打开 URL。
@@ -333,18 +338,63 @@ async def render_artifact(
             "connected": True,
             "status": "pending",
             "next_step": (
-                "render 成功、页面在线,但这段时间用户还没提交。URL 没变、页面没问题,"
-                "**不要重推**。继续等就再调 wait_user_feedback。"
+                "内容已在用户页面上,但这段时间(最多 180 秒)他还没提交。"
+                "**不要重新推送**(重推会清空他已写的批注)。先停下来提醒用户:"
+                "去页面上批注/填写后,点右下角绿色「发送」。之后再调 wait_user_feedback "
+                "查询他的提交(URL 没变,无需重发)。"
             ),
         }
 
+    err = state.error
+    state.error = None
     return {
         "sid": sid,
         "url": _url(sid),
-        "connected": connected,
+        "connected": True,
         "template": state.template,
-        **_finalize(state),
+        "feedback": state.submitted_data,
+        "error": err,
     }
+
+
+def _curl_workflow_hint(sid: str) -> dict[str, Any]:
+    """超长 artifact 的「带外 curl 增量编辑」引导(B 型即时提醒,与 contract 常驻规则互为冗余)。"""
+    base = CONFIG.base_url.rstrip("/")
+    artifact_url = f"{base}/api/{sid}/artifact"
+    render_url = f"{base}/api/{sid}/render"
+    local = f".html-render/{sid}.html"
+    return {
+        "artifact_url": artifact_url,
+        "render_url": render_url,
+        "advice": (
+            "这份 artifact 较长。若接下来只在它基础上做**局部小改**,改用增量工作流比"
+            "重发整份省 token:\n"
+            f"  1) 下载原文到本地: curl -s {artifact_url} -o {local}\n"
+            f"  2) 用 Edit 改 {local}(只动要改的几行)\n"
+            f"  3) 上传并同步等反馈: curl -sS --max-time 190 -X POST {render_url} "
+            f"-H 'Content-Type: text/html; charset=utf-8' --data-binary @{local}\n"
+            "     这次 curl 会阻塞到用户提交、响应体直接返回 feedback,无需再调 "
+            "wait_user_feedback(Bash 工具 timeout 要设 ≥190s)。\n"
+            "  · 若 curl 返回的是 {\"status\":\"pending\"} 而非 feedback:照该响应里的 "
+            "next_step 行事(它会告诉你别重发、改调 wait_user_feedback 续等)。\n"
+            "  内容短、或要大改/重写时,继续用 render_artifact(html=...) 覆盖更省一次往返。"
+        ),
+    }
+
+
+@mcp.tool(description=RENDER_DOC)
+async def render_artifact(
+    html: str,
+    ctx: Context,
+) -> dict[str, Any]:
+    sid = ctx.session_id or stdio_sid()
+    result = await _render_and_wait(sid, html)
+    err = result.pop("error", None)
+    if err:
+        raise ToolError(err)
+    if len(html) >= RENDER_LONG_THRESHOLD:
+        result["long_content_hint"] = _curl_workflow_hint(sid)
+    return result
 
 
 @mcp.tool(description=WAIT_DOC)

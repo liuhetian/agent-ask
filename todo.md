@@ -110,19 +110,22 @@
 
 ### 实现要点
 
-- [ ] 新增上传 `POST /api/{sid}/render`：读 body(text/html) → 存 `state.artifact_html` → `_archive_artifact` → SSE 推 → 阻塞等 `submit_event` → 响应体返回 feedback（超时返回 pending）
-- [ ] 新增下载 `GET /api/{sid}/artifact`：返回 `state.artifact_html` **原文**（带 img-ai / ass-* 类，不是 `/export` 那种图片内联后的成品）
-- [ ] **长度阈值触发引导**：`render_artifact` 收到的 `len(html)` ≥ 阈值时，返回结果里附带「切 curl 工作流」引导——含下载命令（`curl -s …/artifact -o 本地文件`）+ Edit 提示 + 上传命令（`curl --data-binary @文件 POST …/render`）+ 可推导的 render_url / artifact_url。这是 B 型即时提醒（见下「触发与可达性」），与 contract 常驻规则互为冗余。**阈值起点建议 8000 字符**（`len(html)`，混合中文 HTML ≈ 3–4K token；更短的重发成本低、用 render 覆盖更省一次往返），上线后按实际观测在 6000–10000 间调整。
-- [ ] 端点 URL **可推导**（sid 已知即可拼），set_session 顺带返回 render_url / artifact_url 即可，不需要 server 现生成下载链接
-- [ ] contract（`render_html_contract`，常驻、只返回一次）新增：长内容改动走 下载→Edit→curl 工作流 + 选路判据
-- [ ] sanitize **不用动**（剥 script/style/on* 在浏览器侧，server 只存和推）
-- [ ] 信任模型：`/render`、`/artifact` 都是 sid 即能力——与现有图片端点一致，可接受
+- [x] 新增上传 `POST /api/{sid}/render`：读 body(text/html) → 存 `state.artifact_html` → `_archive_artifact` → SSE 推 → 阻塞等 `submit_event` → 响应体返回 feedback（超时返回 pending）。与 `render_artifact` 共用抽出的 `_render_and_wait(sid, html)`。
+- [x] 新增下载 `GET /api/{sid}/artifact`：返回 `state.artifact_html` **原文**（带 img-ai / ass-* 类，不是 `/export` 那种图片内联后的成品）
+- [x] **长度阈值触发引导**：`render_artifact` 收到的 `len(html)` ≥ 阈值时，返回结果里附带 `long_content_hint`（下载/Edit/上传命令 + render_url / artifact_url）。**阈值 `RENDER_LONG_THRESHOLD = 8000` 字符**，上线后按实际观测在 6000–10000 间调整。
+- [x] 端点 URL **可推导**，set_session 返回新增 `render_url` / `artifact_url`
+- [x] 工作流引导**不进 contract**——它是 server 发现超长后才触发的条件性提示，只活在 render 返回的 `long_content_hint`（超阈值才给）；`RENDER_DOC` 仅留一句「有 `long_content_hint` 就照它走」的字段元说明，不含工作流细节
+- [x] sanitize **不用动**（剥 script/style/on* 在浏览器侧，server 只存和推）——已确认，新通道自动继承
+- [x] 信任模型：`/render`、`/artifact` 都是 sid 即能力——与现有图片端点一致，可接受
+- [x] **api_render body 守卫**：`MAX_RENDER_BYTES = 2MB`，Content-Length 预检 + 读后 `len` 二次检查 → 413。（应用层挡意外大请求；真正的 DoS 防护在反代层，见下。）
+- [ ] **部署侧**（远程才生效）：commit + push + 重启 server；反向代理 `proxy_read_timeout` ≥190s（否则 curl 阻塞等提交时被代理掐断）；`client_max_body_size`（如 5m，挡巨大 POST，请求就进不了进程，比应用层守卫更彻底）
 
 ### 触发与可达性
 
-- "该切 curl 工作流"**不能只活在某次返回值里**——终端批注（打断 wait）、上下文压缩、新会话都会让这种运行时一次性信号丢失。
-- 解法：① 工作流规则沉淀进 **contract 常驻**；② 端点 URL **可推导**（sid 已知）；③ AI **自主**按 H、D 选路。server 的"过长提醒"只是冗余强化，不是唯一触发源。
-- 若保留 server 提醒：用 **B 型**（render 收到过长就**立刻返回**引导、不等提交）而非 A 型（等提交后随 feedback 返回）——B 型引导在用户任何操作之前就送达 AI，对网页/终端都可达。
+- 早先担心引导只放返回值会被终端批注 / 上下文压缩 / 新会话"丢失"，一度想沉淀进 contract 兜底。
+- **修正（最终）：引导不进 contract**。① contract 无条件常驻，会让每个会话都背着大多数时候用不上的说明，违背"server 发现超长后才引导"的语义；② `long_content_hint` **不是一次性信号**——它跟着"内容超长"这个**条件**走，每次 render 超长都会重新出现，压缩 / 新会话后再 render 一份长内容它就回来，不存在"丢了拿不回"。
+- 落地：① server 检测超长 → 随 render 最终结果返回 `long_content_hint`（条件触发、就近可达）；② 端点 URL **可推导**（sid 已知）；③ pending 等运行时细节落在对应 response 的 `next_step`，不靠远处文档；④ AI **自主**按 H、D 选路。
+- 实现是「hint 随 render 结果返回」（≈A 型），不必 B 型立刻返回：hint 服务于**下一轮改动**，而下一轮必在本轮 render 返回之后，随结果给就够，也不打断 render 的「推+等+收一体」。
 
 ### 被否方案（存档备查）
 
