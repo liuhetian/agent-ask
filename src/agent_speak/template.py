@@ -474,14 +474,16 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
   .asc-select { position: relative; width: 150px; font-family: inherit; }
   /* trigger 与导出按钮统一为 32px 高(box-sizing 含边框),两栏等高 */
   .asc-select .asc-cs-trigger {
-    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    display: flex; align-items: center; justify-content: center;
+    position: relative;
     box-sizing: border-box;
     width: 100%; height: 32px;
     padding: 0 10px;
     border: 1px solid var(--asc-on-surface); border-radius: var(--asc-radius);
     background: var(--asc-field); color: var(--asc-on-surface);
-    font-family: inherit; font-size: 12px; font-weight: 700; line-height: 1.4;
-    text-align: left; cursor: pointer;
+    font-family: inherit; font-size: 12px; font-weight: 900; line-height: 1.4;
+    text-transform: uppercase; letter-spacing: 0.08em;
+    cursor: pointer;
   }
   .asc-select.open .asc-cs-trigger {
     border-color: var(--asc-accent);
@@ -489,7 +491,8 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
   }
   .asc-select .asc-cs-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .asc-select .asc-cs-arrow {
-    flex: none; width: 0; height: 0;
+    position: absolute; right: 10px;
+    width: 0; height: 0;
     border-left: 5px solid transparent; border-right: 5px solid transparent;
     border-top: 6px solid var(--asc-on-surface);
     transition: transform 150ms;
@@ -514,7 +517,8 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
   }
   .asc-select .asc-cs-menu::-webkit-scrollbar-thumb:hover { background: var(--asc-accent); }
   .asc-select .asc-cs-option {
-    padding: 8px 10px; font-size: 12px; font-weight: 700;
+    padding: 8px 10px; font-size: 12px; font-weight: 900;
+    text-transform: uppercase; letter-spacing: 0.08em; text-align: center;
     color: var(--asc-on-surface); cursor: pointer;
     border-bottom: 1px solid color-mix(in srgb, var(--asc-on-surface) 15%, transparent);
     white-space: nowrap;

@@ -264,6 +264,67 @@ _CANDY_CSS = """
   .artifact-root .hljs-punctuation { color: #a8a29e; }
 """
 
+_FANTASY_CSS = """
+  /* 欧美卡通幻想:暗紫底 + 黄金强调 + 厚重造型 + 游戏 UI 质感 */
+  body { @apply bg-[#130f1e]; }
+  .artifact-root { @apply text-[#f0e6d0]; font-family: ui-sans-serif, system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; }
+
+  /* —— Layout —— */
+  .artifact-root .ass-panel    { @apply bg-[#1e1835] rounded-xl border-2 border-[#d4a520]/50 shadow-[0_0_28px_rgba(212,165,32,0.12),inset_0_1px_0_rgba(255,255,255,0.05)] p-6 mb-4; }
+  .artifact-root .ass-section  { @apply mb-4; }
+  .artifact-root .ass-row      { @apply flex items-center gap-3; }
+  .artifact-root .ass-col      { @apply flex flex-col gap-3; }
+
+  /* —— Typography —— */
+  .artifact-root .ass-h1       { @apply text-2xl font-black tracking-tight text-[#fbbf24] mb-3 pb-2 border-b-2 border-[#d4a520]/40; text-shadow: 0 0 16px rgba(251,191,36,0.35); }
+  .artifact-root .ass-h2       { @apply text-lg font-bold text-[#c084fc] mb-2; text-shadow: 0 0 10px rgba(192,132,252,0.25); }
+  .artifact-root .ass-hint     { @apply text-xs text-[#8b7a6b]; }
+  .artifact-root .ass-code     { @apply font-mono text-sm bg-[#0f0a1a] text-[#fbbf24] px-1.5 py-0.5 rounded border border-[#d4a520]/20; }
+  .artifact-root .ass-kbd      { @apply font-mono text-xs bg-[#241b38] border border-[#d4a520]/30 rounded px-1.5 py-0.5 text-[#f0e6d0]; }
+  .artifact-root .ass-divider  { @apply border-t-2 border-[#d4a520]/30 my-4; }
+
+  /* —— Forms —— */
+  .artifact-root .ass-field    { @apply flex flex-col mb-3; }
+  .artifact-root .ass-label    { @apply block text-sm font-bold text-[#fbbf24] mb-1; }
+  .artifact-root .ass-input,
+  .artifact-root .ass-textarea,
+  .artifact-root .ass-select   { @apply block w-full rounded-lg border border-[#d4a520]/30 bg-[#0f0a1a] px-3 py-2 text-sm text-[#f0e6d0] focus:outline-none focus:ring-2 focus:ring-[#d4a520]/40 focus:border-[#d4a520]; }
+  .artifact-root .ass-textarea { @apply min-h-[6rem]; }
+  .artifact-root .ass-check-row{ @apply flex items-center gap-2 text-sm text-[#f0e6d0]; }
+
+  /* —— Buttons —— */
+  .artifact-root .ass-btn          { @apply inline-flex items-center justify-center gap-1.5 rounded-lg px-3.5 py-2 text-sm font-bold transition-all disabled:opacity-50 cursor-pointer; }
+  .artifact-root .ass-btn-primary  { @apply bg-gradient-to-b from-[#fbbf24] to-[#d4a520] text-[#1a1428] hover:from-[#fcd34d] hover:to-[#eab308] shadow-[0_0_16px_rgba(212,165,32,0.35)]; }
+  .artifact-root .ass-btn-ghost    { @apply bg-transparent text-[#fbbf24] border border-[#d4a520]/40 hover:bg-[#d4a520]/10; }
+  .artifact-root .ass-btn-danger   { @apply bg-[#dc2626] text-white hover:bg-[#ef4444] shadow-[0_0_14px_rgba(220,38,38,0.35)]; }
+
+  /* —— Alerts —— */
+  .artifact-root .ass-alert         { @apply rounded-lg border-l-4 p-3 text-sm; }
+  .artifact-root .ass-alert-info    { @apply bg-[#d4a520]/10 border-[#d4a520] text-[#fbbf24]; }
+  .artifact-root .ass-alert-warn    { @apply bg-[#f59e0b]/10 border-[#f59e0b] text-[#fcd34d]; }
+  .artifact-root .ass-alert-danger  { @apply bg-[#dc2626]/10 border-[#dc2626] text-[#fca5a5]; }
+
+  /* —— Code Blocks (highlight.js) —— */
+  .artifact-root pre { margin: 1em 0; }
+  .artifact-root pre code.hljs { display: block; padding: 1em; overflow-x: auto; background: #0f0a1a; color: #f0e6d0; border: 1px solid rgba(212,165,32,0.2); border-radius: 0.75rem; box-shadow: 0 0 16px rgba(212,165,32,0.06); font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.875rem; line-height: 1.7; }
+  .artifact-root .hljs-keyword,
+  .artifact-root .hljs-selector-tag { color: #c084fc; font-weight: bold; }
+  .artifact-root .hljs-string,
+  .artifact-root .hljs-doctag { color: #86efac; }
+  .artifact-root .hljs-comment { color: #6b5f50; font-style: italic; }
+  .artifact-root .hljs-number,
+  .artifact-root .hljs-literal { color: #67e8f9; }
+  .artifact-root .hljs-title,
+  .artifact-root .hljs-title.function_ { color: #fbbf24; font-weight: bold; }
+  .artifact-root .hljs-built_in { color: #f0abfc; }
+  .artifact-root .hljs-type,
+  .artifact-root .hljs-title.class_ { color: #fcd34d; }
+  .artifact-root .hljs-attr,
+  .artifact-root .hljs-variable { color: #67e8f9; }
+  .artifact-root .hljs-meta { color: #6b5f50; }
+  .artifact-root .hljs-punctuation { color: #8b7a6b; }
+"""
+
 _MAGAZINE_CSS = """
   /* 杂志大刊:黑白高对比 + 鲜橙强调 + 粗黑标题 + 下划线式输入 */
   body { @apply bg-white; }
@@ -336,6 +397,7 @@ TEMPLATES: dict[str, str] = {
     "暗夜霓虹": _CYBER_CSS,
     "柔和糖果": _CANDY_CSS,
     "杂志大刊": _MAGAZINE_CSS,
+    "欧美卡通幻想": _FANTASY_CSS,
 }
 
 
@@ -347,6 +409,7 @@ MERMAID_THEMES: dict[str, str] = {
     "暗夜霓虹": "base",
     "柔和糖果": "base",
     "杂志大刊": "base",
+    "欧美卡通幻想": "base",
 }
 
 # cScale0-6 覆盖 7 个色阶;若图表分类超过 7 个,超出部分会回退到 Mermaid 默认彩色。
@@ -543,6 +606,44 @@ MERMAID_THEME_VARS: dict[str, dict[str, str]] = {
         "cScaleLabel5": "#111111",
         "cScaleLabel6": "#9a3412",
     },
+    "欧美卡通幻想": {
+        "primaryColor": "#1e1835",
+        "primaryTextColor": "#f0e6d0",
+        "primaryBorderColor": "#d4a520",
+        "secondaryColor": "#241b38",
+        "secondaryTextColor": "#f0e6d0",
+        "secondaryBorderColor": "#8b7a6b",
+        "tertiaryColor": "#2d1f4e",
+        "tertiaryTextColor": "#f0e6d0",
+        "tertiaryBorderColor": "#c084fc",
+        "lineColor": "#d4a520",
+        "textColor": "#f0e6d0",
+        "mainBkg": "#1e1835",
+        "nodeBorder": "#d4a520",
+        "clusterBkg": "#130f1e",
+        "clusterBorder": "#d4a520",
+        "titleColor": "#fbbf24",
+        "edgeLabelBackground": "#1e1835",
+        "actorBkg": "#1e1835",
+        "actorBorder": "#d4a520",
+        "actorTextColor": "#f0e6d0",
+        "signalColor": "#d4a520",
+        "signalTextColor": "#f0e6d0",
+        "cScale0": "#1e1835",
+        "cScale1": "#2d1f4e",
+        "cScale2": "#3b1a0a",
+        "cScale3": "#1a2e1a",
+        "cScale4": "#241b38",
+        "cScale5": "#3d1c1c",
+        "cScale6": "#1a2640",
+        "cScaleLabel0": "#f0e6d0",
+        "cScaleLabel1": "#f0e6d0",
+        "cScaleLabel2": "#f0e6d0",
+        "cScaleLabel3": "#f0e6d0",
+        "cScaleLabel4": "#f0e6d0",
+        "cScaleLabel5": "#f0e6d0",
+        "cScaleLabel6": "#f0e6d0",
+    },
 }
 
 
@@ -593,6 +694,14 @@ TEMPLATE_GUIDES: dict[str, str] = {
                 "色盘:底色白 #ffffff / 面板白 #ffffff / 主墨 neutral-900 / 强调橙 orange-600 / "
                 "次灰 neutral-500。圆角策略:rounded-none(全部直角)。"
                 "阴影:无或硬偏移。边框:粗黑 border border-neutral-900,输入用下划线 border-b-2。",
+    "欧美卡通幻想": "暗紫幻想游戏风(深色底 + 黄金强调 + 紫色辅助 + 史诗感光效)。适合游戏相关展示、"
+                    "礼包推荐、活动公告、奇幻主题内容。用金色标题 + 辉光效果营造史诗质感;"
+                    "面板厚重有重量感;配色高饱和但克制,金色作核心强调。\n"
+                    "色盘:底色 #130f1e / 面板 #1e1835 / 文字 #f0e6d0(羊皮纸色) / "
+                    "主强调金 #d4a520~#fbbf24 / 副强调紫 #c084fc / 次灰 #8b7a6b / "
+                    "输入底 #0f0a1a。圆角策略:rounded-xl~rounded-lg(大圆角)。"
+                    "阴影:金色辉光 shadow-[0_0_28px_rgba(212,165,32,0.12)]。"
+                    "边框:半透明金色 border-2 border-[#d4a520]/50。",
 }
 
 
@@ -642,6 +751,18 @@ IMAGE_STYLE_GUIDES: dict[str, str] = {
         "参考 prompt 关键词:高对比编辑摄影, 戏剧性侧光, 深黑与高光, "
         "去饱和色调加暖橙强调, 电影感构图, 浅景深, 时尚杂志大片质感\n"
         "避免:卡通、扁平矢量、低对比——跟杂志的冲击力不匹配。"
+    ),
+    "欧美卡通幻想": (
+        "建议图片风格:SLG 手游商城礼包宣传插画 / 暴雪+皮克斯风格\n"
+        "高品质 3D 渲染质感,半写实手绘材质,主体居中构图,夸张厚重造型。"
+        "画面元素:大型黄金宝箱、蓝色钻石、金币堆、紫色药剂、卷轴和稀有道具、"
+        "木质展示台、精致雕花金属边框。暖金色电影灯光,体积光,柔和 Bloom 辉光,"
+        "发光粒子,高饱和配色,背景虚化。\n"
+        "参考 prompt 关键词:欧美卡通幻想风格, SLG 手游商城礼包宣传插画, "
+        "暴雪+皮克斯风格, 高品质 3D 渲染质感, 半写实手绘材质, 夸张厚重造型, "
+        "暖金色电影灯光, 体积光, 柔和 Bloom 辉光, 发光粒子, 高饱和配色, "
+        "背景虚化, 商业游戏 UI 美术风格, 史诗感, 超精细, 8K\n"
+        "避免:写实摄影、极简扁平、低饱和——跟华丽史诗的游戏风格冲突。"
     ),
 }
 
@@ -732,6 +853,21 @@ CHROME_THEMES: dict[str, dict[str, str]] = {
         "--asc-radius": "0px",
         "--asc-shadow": "5px 5px 0 var(--asc-on-surface)",
         "--asc-shadow-lg": "8px 8px 0 var(--asc-on-surface)",
+    },
+    "欧美卡通幻想": {
+        "--asc-page": "#130f1e",
+        "--asc-surface": "#1e1835",
+        "--asc-on-surface": "#f0e6d0",
+        "--asc-accent": "#d4a520",
+        "--asc-accent-2": "#b8860b",
+        "--asc-muted": "#8b7a6b",
+        "--asc-field": "#0f0a1a",
+        "--asc-send": "#2d7148",
+        "--asc-send-2": "#1f5634",
+        "--asc-font": _SANS,
+        "--asc-radius": "12px",
+        "--asc-shadow": "0 0 22px rgba(212,165,32,0.18)",
+        "--asc-shadow-lg": "0 0 46px rgba(212,165,32,0.25)",
     },
 }
 
