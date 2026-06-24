@@ -1869,15 +1869,28 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     loadMermaidCDN(0);
   }
 
-  function doMermaidRun() {
+  let mermaidRunCounter = 0;
+  async function doMermaidRun() {
     const cfg = MERMAID_CONFIGS[assCurrentTemplate] || MERMAID_CONFIGS['报纸'] || { theme: 'neutral' };
     window.mermaid.initialize({ startOnLoad: false, ...cfg });
     const nodes = mermaidNodes();
     if (nodes.length === 0) return;
-    window.mermaid.run({ nodes: nodes }).catch(err => {
-      console.error('mermaid.run() failed', err);
-      mermaidNodes().forEach(n => showMermaidError(n, String(err)));
-    });
+    const batch = ++mermaidRunCounter;
+    for (let i = 0; i < nodes.length; i++) {
+      if (mermaidRunCounter !== batch) return;
+      const node = nodes[i];
+      const code = node.textContent.trim();
+      if (!code) { node.setAttribute('data-mermaid-processed', 'empty'); continue; }
+      const id = 'mm-' + batch + '-' + i;
+      try {
+        const { svg } = await window.mermaid.render(id, code);
+        node.setAttribute('data-mermaid-processed', 'true');
+        node.innerHTML = svg;
+      } catch (err) {
+        console.warn('mermaid render failed for node', id, err);
+        showMermaidError(node, String(err));
+      }
+    }
   }
 
   // ───── artifact render ─────
@@ -2787,7 +2800,18 @@ hljs.highlightAll();
     if (i >= cdns.length) return;
     var s = document.createElement('script');
     s.src = cdns[i];
-    s.onload = function(){ mermaid.initialize(__MERMAID_INIT_CONFIG__); mermaid.run({nodes:els}); };
+    s.onload = function(){
+      mermaid.initialize(__MERMAID_INIT_CONFIG__);
+      (async function(){
+        for(var j=0;j<els.length;j++){
+          var code=els[j].textContent.trim();
+          if(!code)continue;
+          try{var r=await mermaid.render('mm-e-'+j,code);els[j].innerHTML=r.svg;}
+          catch(e){els[j].style.cssText='border:2px dashed #c00;padding:1em;font-size:13px;white-space:pre-wrap;';
+            els[j].innerHTML='<strong style=\"color:#c00\">Mermaid 渲染失败</strong>\\n'+e;}
+        }
+      })();
+    };
     s.onerror = function(){ s.remove(); tryLoad(i+1); };
     document.head.appendChild(s);
   }
